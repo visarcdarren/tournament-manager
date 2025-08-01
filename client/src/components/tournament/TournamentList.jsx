@@ -26,8 +26,8 @@ export default function TournamentList() {
   
   // Initialize device on mount
   React.useEffect(() => {
-    deviceStore.initializeDevice()
-    window.deviceStore = deviceStore // Make available globally for API
+    // Device is already initialized in App.jsx, just make it available
+    window.deviceStore = useDeviceStore.getState()
     loadTournaments()
   }, [])
   
@@ -80,8 +80,8 @@ export default function TournamentList() {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          'X-Device-ID': deviceStore.deviceId,
-          'X-Device-Name': deviceStore.deviceName,
+          'X-Device-ID': useDeviceStore.getState().deviceId,
+          'X-Device-Name': useDeviceStore.getState().deviceName,
           'X-Superuser-Password': superuserPassword
         }
       })
