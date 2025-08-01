@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label'
 import { KeyRound } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
-export default function SuperuserLoginDialog({ open, onOpenChange, tournamentId, onSuccess }) {
+export default function SuperuserLoginDialog({ open, onOpenChange, tournamentId, onSuccess, isGlobalMode = false }) {
   const [password, setPassword] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { toast } = useToast()
@@ -24,35 +24,65 @@ export default function SuperuserLoginDialog({ open, onOpenChange, tournamentId,
     try {
       setIsSubmitting(true)
       
-      const response = await fetch(`/api/tournament/${tournamentId}/superuser-login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Device-ID': localStorage.getItem('deviceId'),
-          'X-Device-Name': localStorage.getItem('deviceName') || 'Superuser Device'
-        },
-        body: JSON.stringify({ password })
-      })
-      
-      const data = await response.json()
-      
-      if (!response.ok) {
-        toast({
-          title: 'Login Failed',
-          description: data.error || 'Invalid password',
-          variant: 'destructive'
+      if (isGlobalMode) {
+        // For global mode, just verify the password without tournament-specific login
+        const response = await fetch('/api/superuser-verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Device-ID': localStorage.getItem('deviceId'),
+            'X-Device-Name': localStorage.getItem('deviceName') || 'Superuser Device'
+          },
+          body: JSON.stringify({ password })
         })
-        return
+        
+        const data = await response.json()
+        
+        if (!response.ok) {
+          toast({
+            title: 'Login Failed',
+            description: data.error || 'Invalid password',
+            variant: 'destructive'
+          })
+          return
+        }
+        
+        // Success - pass password back for global use
+        onSuccess && onSuccess(password)
+        onOpenChange(false)
+        setPassword('')
+      } else {
+        // Original tournament-specific login
+        const response = await fetch(`/api/tournament/${tournamentId}/superuser-login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Device-ID': localStorage.getItem('deviceId'),
+            'X-Device-Name': localStorage.getItem('deviceName') || 'Superuser Device'
+          },
+          body: JSON.stringify({ password })
+        })
+        
+        const data = await response.json()
+        
+        if (!response.ok) {
+          toast({
+            title: 'Login Failed',
+            description: data.error || 'Invalid password',
+            variant: 'destructive'
+          })
+          return
+        }
+        
+        // Success!
+        toast({
+          title: 'Success',
+          description: 'Admin access granted'
+        })
+        onSuccess && onSuccess()
+        onOpenChange(false)
+        setPassword('')
       }
-      
-      // Success!
-      toast({
-        title: 'Success',
-        description: 'Admin access granted'
-      })
-      onSuccess && onSuccess()
-      onOpenChange(false)
-      setPassword('')
       
     } catch (error) {
       toast({
@@ -74,7 +104,10 @@ export default function SuperuserLoginDialog({ open, onOpenChange, tournamentId,
             Superuser Login
           </DialogTitle>
           <DialogDescription>
-            Enter the superuser password to gain admin access to this tournament.
+            {isGlobalMode 
+              ? 'Enter the superuser password to gain admin access to all tournaments.'
+              : 'Enter the superuser password to gain admin access to this tournament.'
+            }
           </DialogDescription>
         </DialogHeader>
         

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Settings, Save, AlertCircle, Timer, TimerOff } from 'lucide-react'
+import { Settings, Save, AlertCircle, Timer, TimerOff, Users } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,7 +10,7 @@ import api from '@/utils/api'
 import useTournamentStore from '@/stores/tournamentStore'
 import GameTypeManager from './GameTypeManager'
 
-export default function TournamentSetup({ tournament, isAdmin }) {
+export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams }) {
   const { toast } = useToast()
   const tournamentStore = useTournamentStore()
   const [settings, setSettings] = useState(() => {
@@ -132,6 +132,37 @@ export default function TournamentSetup({ tournament, isAdmin }) {
         title: 'Success',
         description: 'Tournament settings saved'
       })
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to save settings',
+        variant: 'destructive'
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+  
+  const saveAndEditTeams = async () => {
+    try {
+      setIsSaving(true)
+      const updatedTournament = {
+        ...tournament,
+        settings
+      }
+      
+      await api.updateTournament(tournament.id, updatedTournament)
+      tournamentStore.setTournament(updatedTournament)
+      
+      toast({
+        title: 'Success',
+        description: 'Settings saved! Switching to teams...'
+      })
+      
+      // Navigate to teams tab after successful save
+      if (onNavigateToTeams) {
+        onNavigateToTeams()
+      }
     } catch (error) {
       toast({
         title: 'Error',
@@ -379,14 +410,23 @@ export default function TournamentSetup({ tournament, isAdmin }) {
           )}
           
           {canEdit && (
-            <Button 
-              onClick={saveSettings} 
-              disabled={isSaving || !canSaveSettings}
-              className="w-full sm:w-auto"
-            >
-              <Save className="mr-2 h-4 w-4" />
-              {isSaving ? 'Saving...' : 'Save Settings'}
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={saveSettings} 
+                disabled={isSaving || !canSaveSettings}
+                variant="outline"
+              >
+                <Save className="mr-2 h-4 w-4" />
+                {isSaving ? 'Saving...' : 'Save Settings'}
+              </Button>
+              <Button 
+                onClick={saveAndEditTeams} 
+                disabled={isSaving || !canSaveSettings}
+              >
+                <Users className="mr-2 h-4 w-4" />
+                {isSaving ? 'Saving...' : 'Save and Edit Teams'}
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>

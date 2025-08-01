@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Trophy, Calendar, Users, Download, Upload, KeyRound } from 'lucide-react'
+import { Plus, Trophy, Calendar, Users, Download, Upload, KeyRound, Trash2, Edit, Shield } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,6 +21,8 @@ export default function TournamentList() {
   const [showSuperuserDialog, setShowSuperuserDialog] = useState(false)
   const [selectedTournamentForLogin, setSelectedTournamentForLogin] = useState(null)
   const [newTournamentName, setNewTournamentName] = useState('')
+  const [isSuperuser, setIsSuperuser] = useState(false)
+  const [superuserPassword, setSuperuserPassword] = useState('')
   
   // Initialize device on mount
   React.useEffect(() => {
@@ -45,14 +47,63 @@ export default function TournamentList() {
     }
   }
   
-  const handleSuperuserLogin = (tournamentId) => {
-    setSelectedTournamentForLogin(tournamentId)
+  const handleSuperuserLogin = () => {
     setShowSuperuserDialog(true)
   }
   
-  const onSuperuserLoginSuccess = () => {
-    if (selectedTournamentForLogin) {
-      navigate(`/tournament/${selectedTournamentForLogin}`)
+  const onSuperuserLoginSuccess = (password) => {
+    setIsSuperuser(true)
+    setSuperuserPassword(password)
+    setShowSuperuserDialog(false)
+    toast({
+      title: 'Superuser Mode Activated',
+      description: 'You now have admin access to all tournaments'
+    })
+  }
+  
+  const deleteTournament = async (tournamentId, tournamentName) => {
+    if (!isSuperuser) {
+      toast({
+        title: 'Access Denied',
+        description: 'Superuser login required to delete tournaments',
+        variant: 'destructive'
+      })
+      return
+    }
+    
+    if (!confirm(`Are you sure you want to delete "${tournamentName}"? This cannot be undone.`)) {
+      return
+    }
+    
+    try {
+      const response = await fetch(`/api/tournament/${tournamentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Device-ID': deviceStore.deviceId,
+          'X-Device-Name': deviceStore.deviceName,
+          'X-Superuser-Password': superuserPassword
+        }
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete tournament')
+      }
+      
+      toast({
+        title: 'Success',
+        description: `Tournament "${tournamentName}" deleted successfully`
+      })
+      
+      // Reload tournament list
+      loadTournaments()
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete tournament',
+        variant: 'destructive'
+      })
     }
   }
   
@@ -147,7 +198,15 @@ export default function TournamentList() {
         <div className="mb-8 flex items-center justify-between" style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <h1 className="text-4xl font-bold" style={{ fontSize: '2.25rem', fontWeight: 'bold' }}>Tournament Manager</h1>
-            <p className="text-muted-foreground" style={{ color: '#94a3b8' }}>Professional tournament management for shuffleboard and darts</p>
+            <p className="text-muted-foreground" style={{ color: '#94a3b8' }}>
+              Tournament management for parties
+              {isSuperuser && (
+                <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-800">
+                  <Shield className="mr-1 h-3 w-3" />
+                  Superuser Mode
+                </span>
+              )}
+            </p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => document.getElementById('import-file').click()}>
@@ -219,33 +278,63 @@ export default function TournamentList() {
             {tournaments.map((tournament) => (
               <Card
                 key={tournament.id}
-                className="cursor-pointer transition-colors hover:bg-accent"
-                onClick={() => navigate(`/tournament/${tournament.id}`)}
+                className="transition-colors hover:bg-accent relative"
               >
-                <CardHeader>
-                  <CardTitle>{tournament.name}</CardTitle>
-                  <CardDescription>
-                    <span className="flex items-center gap-4 text-sm">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" />
-                        {new Date(tournament.created).toLocaleDateString()}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Users className="h-3 w-3" />
-                        {tournament.status}
-                      </span>
-                    </span>
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                    tournament.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    tournament.status === 'active' ? 'bg-blue-100 text-blue-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {tournament.status}
+                {isSuperuser && (
+                  <div className="absolute top-2 right-2 flex gap-1 z-10">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/tournament/${tournament.id}`)
+                      }}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteTournament(tournament.id, tournament.name)
+                      }}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
                   </div>
-                </CardContent>
+                )}
+                <div
+                  className="cursor-pointer"
+                  onClick={() => navigate(`/tournament/${tournament.id}`)}
+                >
+                  <CardHeader>
+                    <CardTitle>{tournament.name}</CardTitle>
+                    <CardDescription>
+                      <span className="flex items-center gap-4 text-sm">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(tournament.created).toLocaleDateString()}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          {tournament.status}
+                        </span>
+                      </span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      tournament.status === 'completed' ? 'bg-green-100 text-green-800' :
+                      tournament.status === 'active' ? 'bg-blue-100 text-blue-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {tournament.status}
+                    </div>
+                  </CardContent>
+                </div>
               </Card>
             ))}
           </div>
@@ -261,18 +350,16 @@ export default function TournamentList() {
               <p>© 2025 Visarc Ltd</p>
               <p className="text-xs mt-1" style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>Built by AI under the supervision of humans and a Franc</p>
             </div>
-            {tournaments.length > 0 && (
-              <button
-                onClick={() => handleSuperuserLogin(tournaments[0].id)}
-                className="hover:text-primary transition-colors"
-                style={{ cursor: 'pointer', textDecoration: 'none' }}
-              >
-                <span className="flex items-center gap-1">
-                  <KeyRound className="h-3 w-3" />
-                  Superuser Login
-                </span>
-              </button>
-            )}
+            <button
+              onClick={() => handleSuperuserLogin()}
+              className="hover:text-primary transition-colors"
+              style={{ cursor: 'pointer', textDecoration: 'none' }}
+            >
+              <span className="flex items-center gap-1">
+                <KeyRound className="h-3 w-3" />
+                {isSuperuser ? 'Superuser Mode Active' : 'Superuser Login'}
+              </span>
+            </button>
           </div>
         </div>
       </footer>
@@ -282,8 +369,9 @@ export default function TournamentList() {
         <SuperuserLoginDialog
           open={showSuperuserDialog}
           onOpenChange={setShowSuperuserDialog}
-          tournamentId={selectedTournamentForLogin}
+          tournamentId={null}
           onSuccess={onSuperuserLoginSuccess}
+          isGlobalMode={true}
         />
       )}
     </div>

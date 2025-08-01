@@ -317,7 +317,11 @@ export default function TournamentView({ tournamentId }) {
             </TabsList>
             
             <TabsContent value="setup">
-              <TournamentSetup tournament={tournament} isAdmin={isAdmin} />
+              <TournamentSetup 
+                tournament={tournament} 
+                isAdmin={isAdmin} 
+                onNavigateToTeams={() => setActiveTab('teams')}
+              />
             </TabsContent>
             
             <TabsContent value="teams">
