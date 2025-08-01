@@ -192,6 +192,11 @@ app.get('/api/team-names', async (req, res) => {
 
 // Get tournament list
 app.get('/api/tournaments', async (req, res) => {
+  // Prevent caching to ensure fresh tournament list
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+  res.setHeader('Pragma', 'no-cache')
+  res.setHeader('Expires', '0')
+  
   try {
     const files = await fs.readdir(DATA_DIR);
     const tournaments = [];
@@ -244,6 +249,11 @@ app.post('/api/tournaments', authenticate, async (req, res) => {
 
 // Get tournament
 app.get('/api/tournament/:id', authenticate, async (req, res) => {
+  // Prevent caching to ensure fresh tournament data
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+  res.setHeader('Pragma', 'no-cache')
+  res.setHeader('Expires', '0')
+  
   const tournament = await loadTournament(req.params.id);
   if (!tournament) {
     return res.status(404).json({ error: 'Tournament not found' });
@@ -795,6 +805,11 @@ app.post('/api/tournament/:id/superuser-login', authenticate, async (req, res) =
 
 // Check device status endpoint
 app.get('/api/tournament/:id/device-status', authenticate, async (req, res) => {
+  // Prevent caching for real-time device status
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+  res.setHeader('Pragma', 'no-cache')
+  res.setHeader('Expires', '0')
+  
   const tournament = await loadTournament(req.params.id);
   if (!tournament) {
     return res.status(404).json({ error: 'Tournament not found' });
@@ -813,6 +828,11 @@ app.get('/api/tournament/:id/device-status', authenticate, async (req, res) => {
 
 // Check pending requests (admin only)
 app.get('/api/tournament/:id/pending-requests', authenticateAdmin, async (req, res) => {
+  // Prevent caching for real-time pending requests
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+  res.setHeader('Pragma', 'no-cache')
+  res.setHeader('Expires', '0')
+  
   const tournament = req.tournament;
   res.json({
     pendingRequests: tournament.pendingRequests || [],
