@@ -270,3 +270,33 @@ MIT License - see LICENSE file for details
 
 © 2025 Visarc Ltd  
 Built by AI under the supervision of humans
+
+---
+
+## 📚 Documentation
+
+This project includes comprehensive documentation to help you understand, deploy, and use the Tournament Manager:
+
+### 📖 **Setup & Usage**
+- **[User Guide](USER_GUIDE.md)** - Complete step-by-step guide for creating tournaments, configuring game types, and running events
+- **[Docker Build Instructions](DOCKER_BUILD.md)** - Docker deployment, troubleshooting, and build fixes
+- **[CSS Fix Guide](CSS_FIX.md)** - Solutions for Tailwind CSS styling issues in Docker builds
+
+### 🔧 **Technical Documentation** 
+- **[System Overview](SYSTEM_OVERVIEW.md)** - Architecture, design decisions, data structures, and future enhancement ideas
+- **[AI Project Info](AI_PROJECT_INFO.md)** - Project structure, file locations, and important notes for AI assistants
+- **[Team Name Generator](TEAM_NAME_GENERATOR.md)** - Implementation details for the automatic team name generation feature
+
+### 🎯 **Quick Start**
+New to the project? Start here:
+1. **[User Guide](USER_GUIDE.md)** - Learn how to create and run tournaments
+2. **[Docker Build Instructions](DOCKER_BUILD.md)** - Get the app running
+3. **[System Overview](SYSTEM_OVERVIEW.md)** - Understand how it all works
+
+### 🆘 **Troubleshooting**
+Having issues? Check:
+- **[Docker Build Instructions](DOCKER_BUILD.md)** for deployment problems
+- **[CSS Fix Guide](CSS_FIX.md)** for styling issues
+- **[User Guide](USER_GUIDE.md)** for usage questions
+
+---
