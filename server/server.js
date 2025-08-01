@@ -259,38 +259,110 @@ app.put('/api/tournament/:id', authenticateAdmin, async (req, res) => {
   res.json({ success: true });
 });
 
-// Request role
+// Request role with enhanced debugging
 app.post('/api/tournament/:id/request-role', authenticate, async (req, res) => {
-  const tournament = await loadTournament(req.params.id);
-  if (!tournament) {
-    return res.status(404).json({ error: 'Tournament not found' });
-  }
-  
-  const { requestedRole, stations, deviceName } = req.body;
-  
-  // Add to pending requests
-  tournament.pendingRequests = tournament.pendingRequests || [];
-  tournament.pendingRequests.push({
+  console.log('[ROLE REQUEST] Received:', {
+    tournamentId: req.params.id,
     deviceId: req.deviceId,
-    deviceName: deviceName || 'Unknown Device',
-    requestedRole,
-    stations,
-    requestedAt: new Date().toISOString()
+    body: req.body
   });
   
-  await saveTournament(tournament.id, tournament);
-  
-  // Notify admin
-  broadcastToTournament(tournament.id, {
-    type: 'role-request',
-    data: {
-      deviceId: req.deviceId,
-      deviceName,
-      requestedRole
+  try {
+    const tournament = await loadTournament(req.params.id);
+    if (!tournament) {
+      console.error('[ROLE REQUEST ERROR] Tournament not found:', req.params.id);
+      return res.status(404).json({ error: 'Tournament not found' });
     }
-  });
-  
-  res.json({ status: 'pending' });
+    
+    const { requestedRole, stations, deviceName } = req.body;
+    
+    // Initialize pendingRequests if not exists
+    if (!tournament.pendingRequests) {
+      tournament.pendingRequests = [];
+    }
+    
+    // Check if device already has a pending request
+    const existingRequestIndex = tournament.pendingRequests.findIndex(
+      r => r.deviceId === req.deviceId
+    );
+    
+    const newRequest = {
+      deviceId: req.deviceId,
+      deviceName: deviceName || 'Unknown Device',
+      requestedRole,
+      stations,
+      requestedAt: new Date().toISOString()
+    };
+    
+    if (existingRequestIndex >= 0) {
+      // Update existing request
+      tournament.pendingRequests[existingRequestIndex] = newRequest;
+      console.log('[ROLE REQUEST] Updated existing request:', newRequest);
+    } else {
+      // Add new request
+      tournament.pendingRequests.push(newRequest);
+      console.log('[ROLE REQUEST] Added new request:', newRequest);
+    }
+    
+    // Save tournament with retry logic
+    let saveAttempts = 0;
+    const maxAttempts = 3;
+    let saved = false;
+    
+    while (saveAttempts < maxAttempts && !saved) {
+      try {
+        await saveTournament(tournament.id, tournament);
+        saved = true;
+      } catch (saveError) {
+        saveAttempts++;
+        console.error(`[SAVE ERROR] Attempt ${saveAttempts}:`, saveError);
+        if (saveAttempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+    }
+    
+    if (!saved) {
+      console.error('[ROLE REQUEST ERROR] Failed to save after', maxAttempts, 'attempts');
+      return res.status(500).json({ error: 'Failed to save request' });
+    }
+    
+    // Verify the request was saved
+    const verifyTournament = await loadTournament(tournament.id);
+    const savedRequest = verifyTournament.pendingRequests?.find(
+      r => r.deviceId === req.deviceId
+    );
+    
+    if (!savedRequest) {
+      console.error('[ROLE REQUEST ERROR] Request not found after save');
+      return res.status(500).json({ error: 'Request save verification failed' });
+    }
+    
+    console.log('[ROLE REQUEST] Verified saved request:', savedRequest);
+    console.log('[ROLE REQUEST] Total pending requests:', verifyTournament.pendingRequests.length);
+    
+    // Notify admin
+    broadcastToTournament(tournament.id, {
+      type: 'role-request',
+      data: {
+        deviceId: req.deviceId,
+        deviceName,
+        requestedRole,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+    console.log('[BROADCAST] Role request notification sent to tournament:', tournament.id);
+    
+    res.json({ 
+      status: 'pending',
+      request: savedRequest
+    });
+    
+  } catch (error) {
+    console.error('[ROLE REQUEST ERROR] Unexpected error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Grant role (admin only)
