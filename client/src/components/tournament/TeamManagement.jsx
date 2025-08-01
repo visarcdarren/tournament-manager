@@ -9,7 +9,6 @@ import { useToast } from '@/hooks/use-toast'
 import api from '@/utils/api'
 import useTournamentStore from '@/stores/tournamentStore'
 import { v4 as uuidv4 } from 'uuid'
-import { generateSchedule } from '@/utils/tournament'
 
 export default function TeamManagement({ tournament, isAdmin }) {
   const { toast } = useToast()
@@ -241,26 +240,35 @@ export default function TeamManagement({ tournament, isAdmin }) {
     setIsStarting(true)
     
     try {
-      // Generate schedule
-      const schedule = generateSchedule(tournament)
+      // Validate tournament setup first
+      const validation = await api.validateTournament(tournament.id)
       
-      // Update tournament state
-      const updatedTournament = {
-        ...tournament,
-        schedule,
-        currentState: {
-          ...tournament.currentState,
-          status: 'active',
-          currentRound: 1
-        }
+      if (!validation.valid) {
+        toast({
+          title: 'Cannot Start Tournament',
+          description: validation.errors.join(', '),
+          variant: 'destructive'
+        })
+        setIsStarting(false)
+        return
       }
       
-      await api.updateTournament(tournament.id, updatedTournament)
-      tournamentStore.setTournament(updatedTournament)
+      // Show warnings if any
+      if (validation.warnings && validation.warnings.length > 0) {
+        validation.warnings.forEach(warning => {
+          toast({
+            title: 'Warning',
+            description: warning
+          })
+        })
+      }
+      
+      // Generate schedule using the API
+      const response = await api.generateSchedule(tournament.id)
       
       toast({
         title: 'Tournament Started!',
-        description: 'The tournament has begun. Good luck to all teams!'
+        description: `Generated ${response.schedule.length} rounds with ${response.schedule.reduce((sum, r) => sum + r.games.length, 0)} total games`
       })
     } catch (error) {
       toast({
@@ -268,6 +276,7 @@ export default function TeamManagement({ tournament, isAdmin }) {
         description: error.message || 'Failed to start tournament',
         variant: 'destructive'
       })
+    } finally {
       setIsStarting(false)
     }
   }

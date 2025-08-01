@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Shield, Eye, Download, Trash2, KeyRound } from 'lucide-react'
+import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Shield, Eye, Download, Trash2, KeyRound, Calendar } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -23,6 +23,7 @@ import CompletionScreen from './CompletionScreen'
 import DevicePermissions from './DevicePermissions'
 import RoleRequestDialog from './RoleRequestDialog'
 import SuperuserLoginDialog from './SuperuserLoginDialog'
+import ScheduleViewer from './ScheduleViewer'
 import { getCurrentRound, isTournamentComplete } from '@/utils/tournament'
 
 export default function TournamentView({ tournamentId }) {
@@ -286,7 +287,7 @@ export default function TournamentView({ tournamentId }) {
           <CompletionScreen tournament={tournament} />
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="setup" disabled={!isAdmin}>
                 <Settings className="mr-2 h-4 w-4" />
                 Setup
@@ -294,6 +295,10 @@ export default function TournamentView({ tournamentId }) {
               <TabsTrigger value="teams" disabled={!isAdmin}>
                 <Users className="mr-2 h-4 w-4" />
                 Teams
+              </TabsTrigger>
+              <TabsTrigger value="schedule" disabled={!tournament.schedule || tournament.schedule.length === 0}>
+                <Calendar className="mr-2 h-4 w-4" />
+                Schedule
               </TabsTrigger>
               <TabsTrigger value="live" disabled={tournament.currentState.status !== 'active'}>
                 <Play className="mr-2 h-4 w-4" />
@@ -317,6 +322,10 @@ export default function TournamentView({ tournamentId }) {
             
             <TabsContent value="teams">
               <TeamManagement tournament={tournament} isAdmin={isAdmin} />
+            </TabsContent>
+            
+            <TabsContent value="schedule">
+              <ScheduleViewer tournament={tournament} />
             </TabsContent>
             
             <TabsContent value="live">

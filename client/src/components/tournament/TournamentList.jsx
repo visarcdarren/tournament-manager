@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Trophy, Calendar, Users, Download, Upload } from 'lucide-react'
+import { Plus, Trophy, Calendar, Users, Download, Upload, KeyRound } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useNavigate } from '@/App'
 import api from '@/utils/api'
 import useDeviceStore from '@/stores/deviceStore'
+import SuperuserLoginDialog from './SuperuserLoginDialog'
 
 export default function TournamentList() {
   const navigate = useNavigate()
@@ -17,6 +18,8 @@ export default function TournamentList() {
   const [tournaments, setTournaments] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showSuperuserDialog, setShowSuperuserDialog] = useState(false)
+  const [selectedTournamentForLogin, setSelectedTournamentForLogin] = useState(null)
   const [newTournamentName, setNewTournamentName] = useState('')
   
   // Initialize device on mount
@@ -42,6 +45,17 @@ export default function TournamentList() {
     }
   }
   
+  const handleSuperuserLogin = (tournamentId) => {
+    setSelectedTournamentForLogin(tournamentId)
+    setShowSuperuserDialog(true)
+  }
+  
+  const onSuperuserLoginSuccess = () => {
+    if (selectedTournamentForLogin) {
+      navigate(`/tournament/${selectedTournamentForLogin}`)
+    }
+  }
+  
   const createTournament = async () => {
     if (!newTournamentName.trim()) {
       toast({
@@ -58,8 +72,30 @@ export default function TournamentList() {
         settings: {
           teams: 4,
           playersPerTeam: 6,
-          shuffleboards: 2,
-          dartboards: 2,
+          gameTypes: [
+            {
+              id: 'shuffleboard',
+              name: 'Shuffleboard',
+              playersPerTeam: 1,
+              stations: [
+                { id: 'shuffleboard-1', name: 'Shuffleboard 1' },
+                { id: 'shuffleboard-2', name: 'Shuffleboard 2' }
+              ]
+            },
+            {
+              id: 'darts',
+              name: 'Darts',
+              playersPerTeam: 1,
+              stations: [
+                { id: 'darts-1', name: 'Darts 1' },
+                { id: 'darts-2', name: 'Darts 2' }
+              ]
+            }
+          ],
+          timer: {
+            enabled: false,
+            duration: 30
+          },
           rounds: 6,
           scoring: { win: 3, draw: 1, loss: 0 }
         },
@@ -105,8 +141,9 @@ export default function TournamentList() {
   }
   
   return (
-    <div className="min-h-screen bg-background p-4" style={{ backgroundColor: '#0f172a', color: '#f8fafc', minHeight: '100vh', padding: '1rem' }}>
-      <div className="mx-auto max-w-6xl" style={{ maxWidth: '72rem', margin: '0 auto' }}>
+    <div className="min-h-screen bg-background flex flex-col" style={{ backgroundColor: '#0f172a', color: '#f8fafc', minHeight: '100vh' }}>
+      <div className="flex-1 p-4" style={{ flex: 1, padding: '1rem' }}>
+        <div className="mx-auto max-w-6xl" style={{ maxWidth: '72rem', margin: '0 auto' }}>
         <div className="mb-8 flex items-center justify-between" style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <h1 className="text-4xl font-bold" style={{ fontSize: '2.25rem', fontWeight: 'bold' }}>Tournament Manager</h1>
@@ -213,7 +250,42 @@ export default function TournamentList() {
             ))}
           </div>
         )}
+        </div>
       </div>
+      
+      {/* Footer */}
+      <footer className="mt-auto border-t" style={{ marginTop: 'auto', borderTop: '1px solid #334155', backgroundColor: '#1e293b' }}>
+        <div className="mx-auto max-w-6xl px-4 py-6" style={{ maxWidth: '72rem', margin: '0 auto', padding: '1.5rem 1rem' }}>
+          <div className="flex items-center justify-between text-sm text-muted-foreground" style={{ fontSize: '0.875rem', color: '#94a3b8' }}>
+            <div>
+              <p>© 2025 Visarc Ltd</p>
+              <p className="text-xs mt-1" style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>Built by AI under the supervision of humans and a Franc</p>
+            </div>
+            {tournaments.length > 0 && (
+              <button
+                onClick={() => handleSuperuserLogin(tournaments[0].id)}
+                className="hover:text-primary transition-colors"
+                style={{ cursor: 'pointer', textDecoration: 'none' }}
+              >
+                <span className="flex items-center gap-1">
+                  <KeyRound className="h-3 w-3" />
+                  Superuser Login
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+      </footer>
+      
+      {/* Superuser Login Dialog */}
+      {showSuperuserDialog && (
+        <SuperuserLoginDialog
+          open={showSuperuserDialog}
+          onOpenChange={setShowSuperuserDialog}
+          tournamentId={selectedTournamentForLogin}
+          onSuccess={onSuperuserLoginSuccess}
+        />
+      )}
     </div>
   )
 }
