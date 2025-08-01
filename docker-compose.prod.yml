@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  tournament-manager:
+    build: .
+    container_name: tournament-manager
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    volumes:
+      # Persistent volume for tournament data
+      - tournament-data:/app/server/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Nginx reverse proxy for SSL and better performance
+  nginx:
+    image: nginx:alpine
+    container_name: tournament-manager-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - nginx-certs:/etc/nginx/certs
+    depends_on:
+      - tournament-manager
+    restart: unless-stopped
+    profiles:
+      - with-nginx
+
+  # Optional: Backup service
+  backup:
+    image: alpine:latest
+    container_name: tournament-manager-backup
+    volumes:
+      - tournament-data:/data:ro
+      - ./backups:/backups
+    command: |
+      sh -c 'while true; do
+        echo "Creating backup at $$(date)"
+        tar -czf /backups/tournament-data-$$(date +%Y%m%d-%H%M%S).tar.gz -C /data .
+        # Keep only last 7 days of backups
+        find /backups -name "tournament-data-*.tar.gz" -mtime +7 -delete
+        sleep 86400
+      done'
+    restart: unless-stopped
+    profiles:
+      - with-backup
+
+volumes:
+  tournament-data:
+    driver: local
+  nginx-certs:
+    driver: local

@@ -1,0 +1,17 @@
+{
+  "name": "Tournament Manager",
+  "short_name": "TournamentMgr",
+  "description": "Professional tournament management for shuffleboard and darts",
+  "theme_color": "#1e293b",
+  "background_color": "#0f172a",
+  "display": "standalone",
+  "start_url": "/",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
