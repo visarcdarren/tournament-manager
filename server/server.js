@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,6 +29,36 @@ async function ensureDataDir() {
   }
 }
 ensureDataDir();
+
+// Load superuser configuration
+let superuserConfig = {};
+async function loadSuperuserConfig() {
+  try {
+    const configPath = path.join(DATA_DIR, 'superuser-config.json');
+    
+    try {
+      const data = await fs.readFile(configPath, 'utf8');
+      superuserConfig = JSON.parse(data);
+    } catch {
+      // Create default config if it doesn't exist
+      const defaultConfig = {
+        enabled: true,
+        password: crypto.randomBytes(16).toString('hex'),
+        passwordHash: null
+      };
+      await fs.writeFile(configPath, JSON.stringify(defaultConfig, null, 2));
+      console.log('\n=== SUPERUSER CONFIG CREATED ===');
+      console.log('Password:', defaultConfig.password);
+      console.log('Config file:', configPath);
+      console.log('Please change this password!\n');
+      superuserConfig = defaultConfig;
+    }
+  } catch (e) {
+    console.error('Failed to load superuser config:', e);
+    superuserConfig = { enabled: false };
+  }
+}
+loadSuperuserConfig();
 
 // In production, serve the client build
 if (isProduction) {
