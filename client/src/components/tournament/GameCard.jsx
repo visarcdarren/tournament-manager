@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Check, RotateCcw } from 'lucide-react'
+import { Check, ArrowLeftRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
@@ -46,40 +46,42 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon }
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Player 1 */}
-        <div className="flex items-center justify-between">
-          <div>
+        {/* Players Container - Centered */}
+        <div className="flex items-center justify-between gap-4">
+          {/* Player 1 */}
+          <div className="flex-1 text-right">
             <div className="font-semibold">{game.player1.playerName}</div>
             <div className="text-sm text-muted-foreground">{game.player1.teamName}</div>
+            {isAdmin && !isCompleted && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onSwapPlayer(game, 1)}
+                className="mt-1"
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+              </Button>
+            )}
           </div>
-          {isAdmin && !isCompleted && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onSwapPlayer(game, 1)}
-            >
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-        
-        <div className="text-center text-sm font-semibold text-muted-foreground">VS</div>
-        
-        {/* Player 2 */}
-        <div className="flex items-center justify-between">
-          <div>
+          
+          {/* VS in the middle */}
+          <div className="text-center text-sm font-semibold text-muted-foreground px-4">VS</div>
+          
+          {/* Player 2 */}
+          <div className="flex-1 text-left">
             <div className="font-semibold">{game.player2.playerName}</div>
             <div className="text-sm text-muted-foreground">{game.player2.teamName}</div>
+            {isAdmin && !isCompleted && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onSwapPlayer(game, 2)}
+                className="mt-1"
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+              </Button>
+            )}
           </div>
-          {isAdmin && !isCompleted && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onSwapPlayer(game, 2)}
-            >
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-          )}
         </div>
         
         {/* Scoring Buttons */}
@@ -90,8 +92,9 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon }
               size="sm"
               onClick={() => scoreGame('player1-win')}
               disabled={isScoring}
+              className="text-xs"
             >
-              {game.player1.playerName.split(' ')[0]} Wins
+              {game.player1.playerName} Wins
             </Button>
             <Button
               variant="outline"
@@ -106,8 +109,9 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon }
               size="sm"
               onClick={() => scoreGame('player2-win')}
               disabled={isScoring}
+              className="text-xs"
             >
-              {game.player2.playerName.split(' ')[0]} Wins
+              {game.player2.playerName} Wins
             </Button>
           </div>
         )}
