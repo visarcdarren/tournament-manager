@@ -5,6 +5,28 @@ import api from './api'
 let teamNamesCache = null
 
 /**
+ * Generate a cryptographically secure random number between 0 and 1
+ * Falls back to Math.random() if crypto is not available
+ */
+const secureRandom = () => {
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+    const array = new Uint32Array(1)
+    window.crypto.getRandomValues(array)
+    return array[0] / (0xffffffff + 1)
+  }
+  return Math.random()
+}
+
+/**
+ * Get a random element from an array with secure randomness
+ */
+const getRandomElement = (array) => {
+  if (!array || array.length === 0) return null
+  const index = Math.floor(secureRandom() * array.length)
+  return array[index]
+}
+
+/**
  * Load team names data from API (with caching)
  */
 const loadTeamNamesData = async () => {
@@ -24,13 +46,21 @@ const loadTeamNamesData = async () => {
     // Fallback data in case of error
     return {
       teamNameWords: {
-        prefixOnly: ['Mighty', 'Super', 'Wild'],
-        suffixOnly: ['Lions', 'Eagles', 'Tigers'], 
-        flexible: ['Thunder', 'Storm', 'Lightning']
+        prefixOnly: ['Mighty', 'Super', 'Wild', 'Epic', 'Mega', 'Ultra'],
+        suffixOnly: ['Lions', 'Eagles', 'Tigers', 'Bears', 'Wolves', 'Hawks'], 
+        flexible: ['Thunder', 'Storm', 'Lightning', 'Fire', 'Ice', 'Shadow']
       },
       avoidCombinations: []
     }
   }
+}
+
+/**
+ * Clear the cached team names data (useful for testing)
+ */
+export const clearTeamNamesCache = () => {
+  teamNamesCache = null
+  console.log('Team names cache cleared')
 }
 
 /**
@@ -46,29 +76,66 @@ export const generateRandomTeamName = async () => {
   const { prefixOnly, suffixOnly, flexible } = teamNamesData.teamNameWords
   const avoidCombinations = teamNamesData.avoidCombinations
   
+  // Debug: Log word counts to verify we're getting the full dataset
+  console.log('Word counts:', {
+    prefixOnly: prefixOnly.length,
+    suffixOnly: suffixOnly.length, 
+    flexible: flexible.length,
+    avoidCombinations: avoidCombinations.length,
+    totalPossibleCombinations: (
+      (prefixOnly.length * suffixOnly.length) + 
+      (prefixOnly.length * flexible.length) + 
+      (flexible.length * suffixOnly.length)
+    )
+  })
+  
+  // Ensure arrays exist and aren't empty
+  if (!prefixOnly?.length || !suffixOnly?.length || !flexible?.length) {
+    console.error('Missing word arrays!')
+    return 'Random Team'
+  }
+  
   let attempts = 0
-  const maxAttempts = 100 // Prevent infinite loops
+  const maxAttempts = 50 // Reduced since we have better randomness
   
   while (attempts < maxAttempts) {
-    let firstWord, secondWord
+    let firstWord, secondWord, combinationType
     
-    // Randomly choose one of the three valid combination types
-    const combinationType = Math.floor(Math.random() * 3)
+    // Use secure random for combination type selection
+    // Weight the selection to favor the combination with most options
+    const weights = [
+      prefixOnly.length * suffixOnly.length,  // Type 0 weight
+      prefixOnly.length * flexible.length,    // Type 1 weight  
+      flexible.length * suffixOnly.length     // Type 2 weight
+    ]
     
+    const totalWeight = weights.reduce((sum, w) => sum + w, 0)
+    let randomWeight = secureRandom() * totalWeight
+    
+    combinationType = 0
+    for (let i = 0; i < weights.length; i++) {
+      if (randomWeight < weights[i]) {
+        combinationType = i
+        break
+      }
+      randomWeight -= weights[i]
+    }
+    
+    // Generate words using secure random
     switch (combinationType) {
       case 0: // prefixOnly + suffixOnly
-        firstWord = prefixOnly[Math.floor(Math.random() * prefixOnly.length)]
-        secondWord = suffixOnly[Math.floor(Math.random() * suffixOnly.length)]
+        firstWord = getRandomElement(prefixOnly)
+        secondWord = getRandomElement(suffixOnly)
         break
         
       case 1: // prefixOnly + flexible
-        firstWord = prefixOnly[Math.floor(Math.random() * prefixOnly.length)]
-        secondWord = flexible[Math.floor(Math.random() * flexible.length)]
+        firstWord = getRandomElement(prefixOnly)
+        secondWord = getRandomElement(flexible)
         break
         
       case 2: // flexible + suffixOnly
-        firstWord = flexible[Math.floor(Math.random() * flexible.length)]
-        secondWord = suffixOnly[Math.floor(Math.random() * suffixOnly.length)]
+        firstWord = getRandomElement(flexible)
+        secondWord = getRandomElement(suffixOnly)
         break
     }
     
@@ -78,14 +145,17 @@ export const generateRandomTeamName = async () => {
     )
     
     if (!isAvoidedCombination) {
+      console.log(`Generated: "${firstWord} ${secondWord}" (type ${combinationType}, attempt ${attempts + 1})`)
       return `${firstWord} ${secondWord}`
     }
     
+    console.log(`Avoided combination: "${firstWord} ${secondWord}" (attempt ${attempts + 1})`)
     attempts++
   }
   
   // Fallback if we somehow can't generate a valid name
-  return `${prefixOnly[0]} ${suffixOnly[0]}`
+  console.warn('Max attempts reached, using fallback name')
+  return `${getRandomElement(prefixOnly)} ${getRandomElement(suffixOnly)}`
 }
 
 /**
