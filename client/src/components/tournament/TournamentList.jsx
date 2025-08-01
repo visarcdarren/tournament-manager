@@ -147,7 +147,7 @@ export default function TournamentList() {
         <div className="mb-8 flex items-center justify-between" style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <h1 className="text-4xl font-bold" style={{ fontSize: '2.25rem', fontWeight: 'bold' }}>Tournament Manager</h1>
-            <p className="text-muted-foreground" style={{ color: '#94a3b8' }}>Professional tournament management for shuffleboard and darts</p>
+            <p className="text-muted-foreground" style={{ color: '#94a3b8' }}>Tournament management for parties</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => document.getElementById('import-file').click()}>
