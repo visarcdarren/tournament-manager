@@ -110,7 +110,7 @@ export default function TournamentList() {
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-4xl font-bold">Tournament Manager</h1>
-            <p className="text-muted-foreground">Professional tournament management for shuffleboard and darts</p>
+            <p className="text-muted-foreground">Tournament management for game parties</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => document.getElementById('import-file').click()}>
