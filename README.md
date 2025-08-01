@@ -135,6 +135,26 @@ If you lose admin access:
 3. Enter the superuser password (found in `server/data/superuser-config.json`)
 4. Gain admin access to any tournament
 
+**Important**: The superuser password is automatically generated on first run and displayed in the server console. Save this password immediately!
+
+**Finding your password:**
+```bash
+# View config file
+cat server/data/superuser-config.json
+
+# Or with Docker:
+docker exec -it tournament-manager cat /app/server/data/superuser-config.json
+```
+
+**Changing the password:**
+```json
+{
+  "enabled": true,
+  "password": "your-new-secure-password",
+  "passwordHash": null
+}
+```
+
 ### Schedule Views
 
 Access the Schedule tab to view:
@@ -241,10 +261,21 @@ tournament-manager/
 ### Lost Admin Access
 Use the superuser login feature from the tournament list page footer.
 
+### Device ID Issues (Fixed in v2.1)
+Device IDs are now permanent and never change. If you're experiencing access issues:
+1. Check `localStorage.getItem('tournament-device-id')` in browser console
+2. Use superuser login to regain access
+3. Clear browser data and refresh if device ID is missing
+
 ### Schedule Generation Fails
 - Ensure all teams have the same number of active players
 - Check that teams have enough players for all game types
 - Verify at least one station per game type
+
+### Real-Time Updates Not Working
+- Check network connection
+- Look for SSE connection errors in browser console
+- Refresh page to reconnect
 
 ### Docker Issues
 ```bash
