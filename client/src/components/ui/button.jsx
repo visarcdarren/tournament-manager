@@ -36,49 +36,10 @@ const Button = React.forwardRef(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : "button"
     
-    // Add inline styles based on variant
-    const getStyles = () => {
-      const base = {
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: '0.375rem',
-        fontSize: '0.875rem',
-        fontWeight: '500',
-        padding: '0.5rem 1rem',
-        cursor: 'pointer',
-        border: 'none',
-        transition: 'all 0.2s'
-      }
-      
-      switch (variant) {
-        case 'outline':
-          return {
-            ...base,
-            border: '1px solid #475569',
-            backgroundColor: 'transparent',
-            color: '#f8fafc'
-          }
-        case 'destructive':
-          return {
-            ...base,
-            backgroundColor: '#dc2626',
-            color: '#ffffff'
-          }
-        default:
-          return {
-            ...base,
-            backgroundColor: '#3b82f6',
-            color: '#ffffff'
-          }
-      }
-    }
-    
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
-        style={getStyles()}
         {...props}
       />
     )

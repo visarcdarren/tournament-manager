@@ -139,6 +139,12 @@ class TournamentAPI {
     })
   }
   
+  async deleteTournament(id) {
+    return this.fetch(`/tournament/${id}`, {
+      method: 'DELETE'
+    })
+  }
+  
   // SSE connection
   connectToEvents(tournamentId, handlers) {
     const deviceStore = window.deviceStore

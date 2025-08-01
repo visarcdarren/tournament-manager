@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react'
-import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Shield, Eye, Download } from 'lucide-react'
+import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Shield, Eye, Download, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { useNavigate } from '@/App'
 import api from '@/utils/api'
@@ -23,6 +31,8 @@ export default function TournamentView({ tournamentId }) {
   const tournamentStore = useTournamentStore()
   const [activeTab, setActiveTab] = useState('setup')
   const [showRoleRequest, setShowRoleRequest] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   
   const { tournament, userRole, isLoading } = tournamentStore
   
@@ -124,6 +134,14 @@ export default function TournamentView({ tournamentId }) {
           loadTournament()
         }
       },
+      'tournament-deleted': (data) => {
+        toast({
+          title: 'Tournament Deleted',
+          description: 'This tournament has been deleted',
+          variant: 'destructive'
+        })
+        navigate('/')
+      },
       'connected': () => {
         tournamentStore.setConnected(true)
       },
@@ -149,6 +167,25 @@ export default function TournamentView({ tournamentId }) {
         description: 'Failed to export tournament',
         variant: 'destructive'
       })
+    }
+  }
+  
+  const deleteTournament = async () => {
+    setIsDeleting(true)
+    try {
+      await api.deleteTournament(tournamentId)
+      toast({
+        title: 'Success',
+        description: 'Tournament deleted successfully'
+      })
+      navigate('/')
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to delete tournament',
+        variant: 'destructive'
+      })
+      setIsDeleting(false)
     }
   }
   
@@ -179,8 +216,8 @@ export default function TournamentView({ tournamentId }) {
         <div className="mx-auto max-w-7xl px-4 py-4" style={{ maxWidth: '80rem', padding: '1rem' }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
-                <ArrowLeft className="h-4 w-4" />
+              <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="h-9 w-9">
+                <ArrowLeft className="h-5 w-5" />
               </Button>
               <div>
                 <h1 className="text-2xl font-bold">{tournament.name}</h1>
@@ -211,9 +248,19 @@ export default function TournamentView({ tournamentId }) {
                 </Button>
               )}
               {isAdmin && (
-                <Button variant="outline" size="icon" onClick={exportTournament}>
-                  <Download className="h-4 w-4" />
-                </Button>
+                <>
+                  <Button variant="outline" size="icon" onClick={exportTournament} className="h-9 w-9">
+                    <Download className="h-5 w-5" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="h-9 w-9 hover:bg-destructive hover:text-destructive-foreground"
+                  >
+                    <Trash2 className="h-5 w-5" />
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -287,6 +334,38 @@ export default function TournamentView({ tournamentId }) {
         onOpenChange={setShowRoleRequest}
         tournamentId={tournamentId}
       />
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Tournament</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{tournament?.name}"? This action cannot be undone.
+              All tournament data, game results, and history will be permanently deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                deleteTournament()
+                setShowDeleteDialog(false)
+              }}
+              disabled={isDeleting}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete Tournament'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

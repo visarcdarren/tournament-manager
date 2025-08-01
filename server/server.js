@@ -531,6 +531,36 @@ app.post('/api/tournament/import', authenticate, async (req, res) => {
   res.json({ id: tournament.id });
 });
 
+// Delete tournament (admin only)
+app.delete('/api/tournament/:id', authenticateAdmin, async (req, res) => {
+  const tournamentId = req.params.id;
+  
+  try {
+    // Delete tournament file
+    await fs.unlink(path.join(DATA_DIR, `${tournamentId}.json`));
+    
+    // Delete audit file if it exists
+    try {
+      await fs.unlink(path.join(DATA_DIR, `${tournamentId}-audit.json`));
+    } catch (e) {
+      // Audit file might not exist, that's ok
+    }
+    
+    // Notify all connected clients that the tournament was deleted
+    broadcastToTournament(tournamentId, {
+      type: 'tournament-deleted',
+      data: { tournamentId }
+    });
+    
+    // Clean up SSE connections
+    sseClients.delete(tournamentId);
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete tournament' });
+  }
+});
+
 // Catch-all route for client-side routing in production
 if (isProduction) {
   app.get('*', (req, res) => {
