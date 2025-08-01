@@ -2,29 +2,40 @@
 
 ## What is Tournament Manager?
 
-Tournament Manager is a web-based system for running shuffleboard and darts tournaments. It handles the complex logistics of scheduling 1v1 games across multiple stations while ensuring fair play distribution and real-time score tracking across multiple devices.
+Tournament Manager is a flexible web-based system for running multi-game tournaments at parties and competitive events. It handles the complex logistics of scheduling games across multiple stations, supporting everything from 1v1 matches to team games like 2v2 or 5v5, while ensuring fair play distribution and real-time score tracking across multiple devices.
 
 ## Key Problems It Solves
 
-### 1. **Fair Game Scheduling**
-**Problem:** With 24 players across 4 teams using 4 game stations, creating fair matchups is complex.
+### 1. **Dynamic Game Configuration**
+**Problem:** Different events need different games - pool, darts, shuffleboard, cornhole, etc.
 
-**Solution:** An intelligent algorithm that:
-- Ensures everyone plays the same number of games
-- Prevents same-team matchups
-- Rotates players between shuffleboard, darts, and rest
-- Minimizes repeat opponents
+**Solution:** Flexible game type system where you can:
+- Add any game type with custom player counts
+- Configure 1v1, 2v2, 3v3, or any team size
+- Set up multiple stations per game
+- Mix different game types in one tournament
 
-### 2. **Multi-Device Coordination**
+### 2. **Complex Scheduling**
+**Problem:** With multiple game types and team sizes, creating fair matchups is extremely complex.
+
+**Solution:** Intelligent scheduling algorithm that:
+- Handles multi-player games without conflicts
+- Manages fixed or rotating partnerships
+- Ensures fair game distribution
+- Provides variety in activities
+- Shows individual player schedules
+
+### 3. **Multi-Device Coordination**
 **Problem:** Tournament director can't be everywhere at once to record scores.
 
 **Solution:** Role-based system where:
 - Admin has full control from one device
 - Scorers at each station enter results
-- Spectators can view live updates
+- Players can view their personal schedules
 - All devices sync in real-time
+- Emergency superuser access if admin device is lost
 
-### 3. **No Internet/Database Required**
+### 4. **No Internet/Database Required**
 **Problem:** Venue may have poor internet, and setting up databases is complex.
 
 **Solution:** 
@@ -35,157 +46,198 @@ Tournament Manager is a web-based system for running shuffleboard and darts tour
 
 ## Core Concepts
 
-### **1v1 Game Structure**
-- Every game is one player versus one player
-- Players represent their teams but compete individually  
-- 4 games happen simultaneously (8 active players)
-- 16 players rest each round
-- Points go to the player's team
+### **Flexible Game Structure**
+- **1v1 Games**: Traditional head-to-head matches
+- **Team Games**: 2v2, 3v3, up to any size
+- **Fixed Partners**: Same teammates throughout
+- **Rotating Partners**: Different teammates each round
+- Players compete for their teams in all formats
 
-### **Station Types**
-- **Shuffleboard**: Sliding puck game requiring strategy
-- **Dartboard**: Precision throwing game
-- Players rotate between both types for variety
+### **Game Type Examples**
+- **Shuffleboard**: 1v1 strategy game
+- **Pool**: 2v2 team game with fixed partners
+- **Darts**: 1v1 precision game
+- **Cornhole**: 2v2 casual game with rotating partners
+- **Volleyball**: 5v5 team sport
+- Configure any game your venue supports!
 
 ### **Tournament Flow**
 ```
-Setup Phase → Active Rounds → Completion
-    │              │              │
-    │              │              └── Winner celebration
-    │              │                  Export results
-    │              │
-    │              └── Round 1 → Round 2 → ... → Round N
-    │                     │         │               │
-    │                     │         │               └── 4 games
-    │                     │         └── 4 games         16 resting
-    │                     └── 4 games
-    │                         16 resting
+Setup Phase → Schedule Generation → Active Rounds → Completion
+    │                │                    │              │
+    │                │                    │              └── Winner celebration
+    │                │                    │                  Export results
+    │                │                    │
+    │                │                    └── Round 1 → Round 2 → ... → Round N
+    │                │                            │         │               │
+    │                │                            │         │               └── Games + Rest
+    │                │                            │         └── Games + Rest
+    │                │                            └── Games + Rest
+    │                │
+    │                └── Validates setup
+    │                    Assigns partnerships
+    │                    Creates fair matchups
     │
-    └── Configure teams
-        Add all players
-        Set equipment/rounds
+    └── Configure teams & players
+        Define game types
+        Set stations & rules
 ```
 
-### **Scoring System**
-- **Win**: 3 points (default, configurable)
-- **Draw**: 1 point for each player
-- **Loss**: 0 points
-- Team score = sum of all player points
+### **Schedule Views**
+- **By Round**: Overview of each round's games
+- **By Station**: What's happening at each location
+- **By Player**: Personal schedules for participants
 
 ## Technical Design Decisions
 
-### **Why React?**
-- Modern, component-based UI
-- Excellent mobile performance
-- Large ecosystem of tools
-- Easy state management with Zustand
+### **Why Version 2?**
+- **Dynamic Games**: Not limited to pre-defined types
+- **Team Support**: Handles any player configuration
+- **Better UX**: Schedule viewer, validation feedback
+- **Recovery Options**: Superuser access, better error handling
 
-### **Why No Database?**
-- Simplicity - no complex setup
-- Portability - just copy files
-- Reliability - no connection issues
-- Sufficient - tournaments are small scale
+### **Architecture Choices**
 
-### **Why Server-Sent Events (SSE)?**
-- Real-time updates without complexity
-- Works through firewalls
-- Automatic reconnection
-- One-way communication is sufficient
+**Frontend (React + Vite):**
+- Fast development and hot reload
+- Component reusability for different game types
+- Responsive design for all devices
+- PWA support for offline use
 
-### **Why Docker?**
-- Consistent deployment environment
-- Easy installation - one command
-- Data persistence with volumes
-- Professional production setup
+**Backend (Node.js + Express):**
+- Simple REST API
+- Server-Sent Events for real-time updates
+- File-based storage for simplicity
+- Stateless design for reliability
+
+**No Database:**
+- Zero configuration required
+- Human-readable data format
+- Easy backup/restore
+- Sufficient for tournament scale
 
 ## System Components
 
-### **Frontend Application (React)**
+### **Frontend Application**
 
-**Key Files:**
-- `App.jsx` - Main application and routing
-- `TournamentView.jsx` - Tournament management hub
-- `LiveTournament.jsx` - Active round interface
-- `GameCard.jsx` - Individual game scoring
-- `stores/` - State management with Zustand
+**Key Components:**
+- `GameTypeManager.jsx` - Configure custom games
+- `ScheduleViewer.jsx` - View schedules in multiple formats
+- `GameCard.jsx` - Universal game scoring interface
+- `LiveTournament.jsx` - Real-time round management
+- `SuperuserLoginDialog.jsx` - Emergency access
 
 **Component Hierarchy:**
 ```
 App
 ├── TournamentList
-│   └── Create/Select Tournament
+│   ├── Create Tournament
+│   └── Superuser Login (Footer)
 └── TournamentView
-    ├── TournamentSetup (Admin)
-    ├── TeamManagement (Admin)
-    ├── LiveTournament (All)
-    │   ├── RoundTimer
-    │   ├── GameCards
-    │   └── RestArea
-    ├── Leaderboard (All)
-    └── DevicePermissions (Admin)
+    ├── Setup Tab
+    │   ├── Basic Settings
+    │   ├── Game Type Manager (NEW)
+    │   └── Timer Settings (NEW)
+    ├── Teams Tab
+    ├── Schedule Tab (NEW)
+    │   ├── By Round View
+    │   ├── By Station View
+    │   └── By Player View
+    ├── Live Tab
+    │   ├── Active Games
+    │   └── Rest Area
+    ├── Leaderboard Tab
+    └── Devices Tab (Admin)
 ```
 
-### **Backend Server (Node.js/Express)**
+### **Backend Server**
 
-**Core Responsibilities:**
-1. Serve the React application
-2. RESTful API for data operations
-3. SSE connections for live updates
-4. File system operations for data
-5. Permission management
+**Core Modules:**
+- `server.js` - Main application server
+- `scheduleGenerator.js` - Complex scheduling algorithm
+- Authentication middleware
+- SSE broadcast system
 
 **Key Endpoints:**
 ```javascript
-// Tournament CRUD
-GET    /api/tournaments          // List all
-POST   /api/tournaments          // Create new
-GET    /api/tournament/:id       // Get details
-PUT    /api/tournament/:id       // Update
+// Tournament Management
+POST   /api/tournaments                  // Create with game types
+GET    /api/tournament/:id              // Get with version migration
+PUT    /api/tournament/:id              // Update settings
 
-// Game Operations  
-POST   /api/tournament/:id/score // Submit result
+// Schedule Operations
+POST   /api/tournament/:id/validate     // Check setup validity
+POST   /api/tournament/:id/generate-schedule  // Create schedule
 
-// Real-time
-GET    /api/tournament/:id/events // SSE stream
+// Game Scoring
+POST   /api/tournament/:id/score        // Works for any game type
 
-// Permissions
-POST   /api/tournament/:id/request-role
-POST   /api/tournament/:id/grant-role
+// Emergency Access
+POST   /api/tournament/:id/superuser-login   // Password-based admin access
+
+// Real-time Updates
+GET    /api/tournament/:id/events       // SSE connection
 ```
 
-### **Data Storage**
+### **Data Storage (v2)**
 
-**Tournament File Structure:**
+**Tournament Structure:**
 ```json
 {
+  "version": 2,
   "id": "uuid",
-  "name": "Summer League 2024",
+  "name": "Summer Party 2024",
   "settings": {
     "teams": 4,
-    "playersPerTeam": 6,
+    "playersPerTeam": 8,
     "rounds": 6,
+    "gameTypes": [
+      {
+        "id": "pool",
+        "name": "Pool",
+        "playersPerTeam": 2,
+        "partnerMode": "fixed",
+        "stations": [
+          { "id": "pool", "name": "Pool" }
+        ]
+      },
+      {
+        "id": "darts",
+        "name": "Darts",
+        "playersPerTeam": 1,
+        "stations": [
+          { "id": "darts-1", "name": "Darts 1" },
+          { "id": "darts-2", "name": "Darts 2" }
+        ]
+      }
+    ],
+    "timer": {
+      "enabled": false,
+      "duration": 30
+    },
     "scoring": { "win": 3, "draw": 1, "loss": 0 }
   },
-  "teams": [
-    {
-      "id": "uuid",
-      "name": "Red Dragons",
-      "players": [
-        { "id": "uuid", "name": "John Smith", "status": "active" }
-      ]
-    }
-  ],
+  "teams": [...],
   "schedule": [
     {
       "round": 1,
       "games": [
         {
           "id": "uuid",
-          "station": "shuffleboard-1",
-          "player1": { "teamId": "...", "playerId": "...", "playerName": "John" },
-          "player2": { "teamId": "...", "playerId": "...", "playerName": "Sarah" },
-          "status": "completed",
-          "result": "player1-win"
+          "station": "pool",
+          "stationName": "Pool",
+          "gameType": "pool",
+          "gameTypeName": "Pool",
+          "team1Players": [
+            { "teamId": "...", "playerId": "...", "playerName": "John" },
+            { "teamId": "...", "playerId": "...", "playerName": "Sarah" }
+          ],
+          "team2Players": [
+            { "teamId": "...", "playerId": "...", "playerName": "Mike" },
+            { "teamId": "...", "playerId": "...", "playerName": "Lisa" }
+          ],
+          "status": "pending",
+          "result": null
         }
       ]
     }
@@ -193,93 +245,130 @@ POST   /api/tournament/:id/grant-role
 }
 ```
 
-### **Real-Time Synchronization**
+### **Scheduling Algorithm**
 
-**Update Flow Example:**
-1. Scorer at dartboard-1 clicks "John Wins"
-2. Frontend sends POST to `/api/tournament/123/score`
-3. Server updates JSON file
-4. Server broadcasts via SSE: `{ type: 'game-scored', data: {...} }`
-5. All connected clients receive update
-6. React components re-render with new data
-7. Leaderboard updates automatically
+**Multi-Player Game Support:**
+```javascript
+// Partnership Generation
+function generatePartnerships(team, gameType, round) {
+  if (gameType.partnerMode === 'fixed') {
+    // Deterministic pairing - same partners always
+    return createFixedPairs(team.players, gameType.playersPerTeam)
+  } else {
+    // Rotating - different partners each round
+    return createRotatingPairs(team.players, gameType.playersPerTeam, round)
+  }
+}
 
-### **Security Model**
-
-**Device-Based (No Passwords):**
-- Simple for non-technical users
-- No forgotten passwords
-- Device ID in localStorage
-- Admin controls permissions
-
-**Permission Levels:**
+// Conflict Prevention
+class PlayerTracker {
+  isAvailable(playerId)      // Not already playing
+  assign(playerId, gameId)    // Mark as playing
+  recordGame(players, type)   // Track history
+  hasPlayedAgainst(p1, p2)   // Avoid repeats
+}
 ```
-Admin (ADMIN)
-  ├── Full tournament control
-  ├── Grant/revoke permissions
-  └── View audit logs
 
-Scorer (SCORER)  
-  ├── Score assigned games
-  └── View tournament
+**Validation System:**
+- Pre-flight checks before schedule generation
+- Clear error messages for setup issues
+- Warnings for sub-optimal configurations
+- Real-time feedback during setup
 
-Viewer (VIEWER)
-  └── View tournament only
+### **Real-Time Updates**
+
+**SSE Message Types:**
+```javascript
+// Game scored
+{ type: 'game-scored', data: { gameId, result, round } }
+
+// Timer events  
+{ type: 'timer-countdown', data: { round, duration } }
+{ type: 'timer-started', data: { round, expiresAt } }
+
+// Permission changes
+{ type: 'role-request', data: { deviceId, deviceName } }
+{ type: 'role-granted', data: { deviceId, role } }
+
+// Tournament updates
+{ type: 'tournament-update', data: { ...tournament } }
 ```
+
+### **Security & Recovery**
+
+**Superuser System:**
+```json
+// server/data/superuser-config.json
+{
+  "enabled": true,
+  "password": "generated-on-first-run",
+  "passwordHash": null  // Optional SHA256 hash
+}
+```
+
+**Access Recovery Flow:**
+1. User loses admin device/access
+2. Navigate to tournament list
+3. Click "Superuser Login" in footer
+4. Enter password from config file
+5. Gain admin access to any tournament
 
 ## Deployment Architecture
 
-### **Docker Setup**
-```
-tournament-manager/
-├── client/          # React app
-├── server/          # Node.js API
-├── Dockerfile       # Build instructions
-└── docker-compose.yml
+### **Docker Configuration**
+```yaml
+version: '3.8'
+services:
+  tournament-manager:
+    build: .
+    ports:
+      - "3001:3001"
+    volumes:
+      - tournament-data:/app/server/data
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+    restart: unless-stopped
 ```
 
-### **Container Details**
-- Base image: `node:18-alpine` (small & secure)
-- Multi-stage build (separate build/runtime)
-- Non-root user for security
-- Health checks for monitoring
-- Automatic restart on failure
-
-### **Data Persistence**
-- Docker volume: `tournament-data`
-- Mounted at: `/app/server/data`
-- Survives container recreation
-- Easy backup via volume export
+### **Production Considerations**
+- Nginx reverse proxy for SSL
+- Regular automated backups
+- Log rotation for debugging
+- Resource limits for stability
+- Health monitoring
 
 ## Future Enhancement Ideas
 
-1. **Tournament Formats**
-   - Double elimination brackets
-   - Swiss system
-   - Round-robin pools
+### **Tournament Formats**
+- Bracket elimination
+- Swiss system
+- League play over multiple days
+- Handicap systems
 
-2. **Game Types**
-   - Pool/billiards
-   - Cornhole
-   - Table tennis
-   - Custom games
+### **Advanced Features**
+- Player statistics and history
+- Team rankings across tournaments
+- Mobile app with QR code check-in
+- Live streaming integration
+- Venue display boards
 
-3. **Advanced Features**
-   - Player handicaps
-   - ELO ratings
-   - Tournament history
-   - Player profiles
+### **Game Integrations**
+- Electronic dartboards API
+- Shuffleboard sensors
+- Score tracking cameras
+- Automated game detection
 
-4. **Integration Options**
-   - Email notifications
-   - SMS alerts
-   - Live streaming overlay
-   - Venue TV displays
+### **Social Features**
+- Player profiles with photos
+- Tournament photos/highlights
+- Social media sharing
+- Achievement badges
 
-5. **Analytics**
-   - Player performance trends
-   - Team statistics
-   - Game duration tracking
-   - Win probability predictions
+The system is designed to grow with your needs while maintaining the simplicity that makes it accessible to non-technical tournament organizers.
 
-The system is designed to be extensible while keeping the core functionality simple and reliable for running successful tournaments.
+## Credits
+
+© 2025 Visarc Ltd  
+Built by AI under the supervision of humans

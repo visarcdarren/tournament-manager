@@ -1,18 +1,66 @@
-import React, { useState } from 'react'
-import { Settings, Save, AlertCircle } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Settings, Save, AlertCircle, Timer, TimerOff } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/hooks/use-toast'
 import api from '@/utils/api'
 import useTournamentStore from '@/stores/tournamentStore'
+import GameTypeManager from './GameTypeManager'
 
 export default function TournamentSetup({ tournament, isAdmin }) {
   const { toast } = useToast()
   const tournamentStore = useTournamentStore()
-  const [settings, setSettings] = useState(tournament.settings)
+  const [settings, setSettings] = useState(() => {
+    // Ensure we have the new structure
+    const baseSettings = {
+      ...tournament.settings,
+      gameTypes: tournament.settings.gameTypes || [],
+      timer: tournament.settings.timer || { enabled: false, duration: 30 }
+    }
+    
+    // Migrate old equipment settings if needed
+    if (!baseSettings.gameTypes.length && tournament.settings.equipment) {
+      const gameTypes = []
+      
+      if (tournament.settings.equipment.shuffleboards > 0) {
+        gameTypes.push({
+          id: 'shuffleboard',
+          name: 'Shuffleboard',
+          playersPerTeam: 1,
+          stations: Array(tournament.settings.equipment.shuffleboards)
+            .fill(null)
+            .map((_, i) => ({
+              id: tournament.settings.equipment.shuffleboards === 1 ? 'shuffleboard' : `shuffleboard-${i + 1}`,
+              name: tournament.settings.equipment.shuffleboards === 1 ? 'Shuffleboard' : `Shuffleboard ${i + 1}`
+            }))
+        })
+      }
+      
+      if (tournament.settings.equipment.dartboards > 0) {
+        gameTypes.push({
+          id: 'darts',
+          name: 'Darts',
+          playersPerTeam: 1,
+          stations: Array(tournament.settings.equipment.dartboards)
+            .fill(null)
+            .map((_, i) => ({
+              id: tournament.settings.equipment.dartboards === 1 ? 'darts' : `darts-${i + 1}`,
+              name: tournament.settings.equipment.dartboards === 1 ? 'Darts' : `Darts ${i + 1}`
+            }))
+        })
+      }
+      
+      baseSettings.gameTypes = gameTypes
+    }
+    
+    return baseSettings
+  })
+  
   const [isSaving, setIsSaving] = useState(false)
+  const [validation, setValidation] = useState(null)
   
   const handleSettingChange = (field, value) => {
     setSettings(prev => ({
@@ -30,6 +78,44 @@ export default function TournamentSetup({ tournament, isAdmin }) {
       }
     }))
   }
+  
+  const handleTimerChange = (field, value) => {
+    setSettings(prev => ({
+      ...prev,
+      timer: {
+        ...prev.timer,
+        [field]: field === 'duration' ? parseInt(value) || 30 : value
+      }
+    }))
+  }
+  
+  const handleGameTypesChange = (gameTypes) => {
+    setSettings(prev => ({
+      ...prev,
+      gameTypes
+    }))
+  }
+  
+  // Validate settings whenever they change
+  useEffect(() => {
+    const validateSettings = async () => {
+      // Only validate if we have actual teams created
+      if (!tournament.id || !tournament.teams || tournament.teams.length === 0) {
+        setValidation(null)
+        return
+      }
+      
+      try {
+        const response = await api.validateTournament(tournament.id)
+        setValidation(response)
+      } catch (error) {
+        console.error('Validation error:', error)
+        setValidation(null)
+      }
+    }
+    
+    validateSettings()
+  }, [settings, tournament.teams, tournament.id])
   
   const saveSettings = async () => {
     try {
@@ -58,12 +144,31 @@ export default function TournamentSetup({ tournament, isAdmin }) {
   }
   
   const canEdit = isAdmin && tournament.currentState.status === 'setup'
+  const hasValidationErrors = validation && !validation.valid
+  
+  // Calculate summary stats
+  const totalStations = settings.gameTypes.reduce((sum, gt) => sum + gt.stations.length, 0)
+  const totalPlayers = settings.teams * settings.playersPerTeam
+  const playersPerRound = Math.min(totalPlayers, totalStations * 2) // Assuming minimum 1v1
+  const restingPlayers = Math.max(0, totalPlayers - playersPerRound)
+  
+  // Check if basic settings are valid
+  const hasBasicSettings = settings.teams >= 2 && 
+                          settings.teams <= 10 && 
+                          settings.playersPerTeam >= 4 && 
+                          settings.playersPerTeam <= 10 && 
+                          settings.playersPerTeam % 2 === 0 &&
+                          settings.rounds >= 1
+  
+  // For initial setup, we don't need teams to be created yet
+  const canSaveSettings = canEdit && hasBasicSettings
   
   return (
     <div className="space-y-6">
+      {/* Basic Settings */}
       <Card>
         <CardHeader>
-          <CardTitle>Tournament Configuration</CardTitle>
+          <CardTitle>Basic Configuration</CardTitle>
           <CardDescription>
             {canEdit 
               ? 'Configure your tournament settings. These cannot be changed once the tournament starts.'
@@ -106,56 +211,58 @@ export default function TournamentSetup({ tournament, isAdmin }) {
             </div>
           </div>
           
-          {/* Equipment Settings */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Equipment</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="shuffleboards">Shuffleboards</Label>
-                <Input
-                  id="shuffleboards"
-                  type="number"
-                  min="1"
-                  max="4"
-                  value={settings.shuffleboards}
-                  onChange={(e) => handleSettingChange('shuffleboards', e.target.value)}
-                  disabled={!canEdit}
-                />
-                <p className="mt-1 text-sm text-muted-foreground">1-4 shuffleboards</p>
-              </div>
-              <div>
-                <Label htmlFor="dartboards">Dartboards</Label>
-                <Input
-                  id="dartboards"
-                  type="number"
-                  min="1"
-                  max="4"
-                  value={settings.dartboards}
-                  onChange={(e) => handleSettingChange('dartboards', e.target.value)}
-                  disabled={!canEdit}
-                />
-                <p className="mt-1 text-sm text-muted-foreground">1-4 dartboards</p>
-              </div>
-            </div>
-          </div>
-          
           {/* Round Settings */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Rounds</h3>
-            <div>
-              <Label htmlFor="rounds">Number of Rounds</Label>
-              <Input
-                id="rounds"
-                type="number"
-                min="1"
-                max="20"
-                value={settings.rounds}
-                onChange={(e) => handleSettingChange('rounds', e.target.value)}
-                disabled={!canEdit}
-              />
-              <p className="mt-1 text-sm text-muted-foreground">
-                Total games: {settings.rounds * (settings.shuffleboards + settings.dartboards)}
-              </p>
+            <h3 className="text-lg font-semibold">Rounds & Timing</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="rounds">Number of Rounds</Label>
+                <Input
+                  id="rounds"
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={settings.rounds}
+                  onChange={(e) => handleSettingChange('rounds', e.target.value)}
+                  disabled={!canEdit}
+                />
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Total games: {settings.rounds * totalStations}
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="timer-enabled"
+                    checked={settings.timer.enabled}
+                    onCheckedChange={(checked) => handleTimerChange('enabled', checked)}
+                    disabled={!canEdit}
+                  />
+                  <Label 
+                    htmlFor="timer-enabled" 
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    {settings.timer.enabled ? <Timer className="h-4 w-4" /> : <TimerOff className="h-4 w-4" />}
+                    Enable Round Timer
+                  </Label>
+                </div>
+                
+                {settings.timer.enabled && (
+                  <div>
+                    <Label htmlFor="timer-duration">Duration (minutes)</Label>
+                    <Input
+                      id="timer-duration"
+                      type="number"
+                      min="1"
+                      max="120"
+                      value={settings.timer.duration}
+                      onChange={(e) => handleTimerChange('duration', e.target.value)}
+                      disabled={!canEdit}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           
@@ -198,27 +305,85 @@ export default function TournamentSetup({ tournament, isAdmin }) {
               </div>
             </div>
           </div>
-          
-          {/* Summary */}
-          <div className="rounded-lg bg-muted p-4">
-            <h4 className="mb-2 font-semibold">Tournament Summary</h4>
-            <div className="grid gap-2 text-sm">
-              <div>Total Players: {settings.teams * settings.playersPerTeam}</div>
-              <div>Games per Round: {settings.shuffleboards + settings.dartboards}</div>
-              <div>Players per Round: {(settings.shuffleboards + settings.dartboards) * 2} active, {settings.teams * settings.playersPerTeam - (settings.shuffleboards + settings.dartboards) * 2} resting</div>
-              <div>Total Games: {settings.rounds * (settings.shuffleboards + settings.dartboards)}</div>
-            </div>
-            
-            {settings.playersPerTeam % 2 !== 0 && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-destructive">
-                <AlertCircle className="h-4 w-4" />
-                Players per team must be an even number
-              </div>
+        </CardContent>
+      </Card>
+
+      {/* Game Types */}
+      {canEdit && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Game Types</CardTitle>
+            <CardDescription>
+              Define the different games that will be played in your tournament
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <GameTypeManager 
+              gameTypes={settings.gameTypes}
+              onChange={handleGameTypesChange}
+              teams={tournament.teams}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Summary & Validation */}
+      <Card className={hasValidationErrors ? 'border-destructive' : ''}>
+        <CardHeader>
+          <CardTitle>Tournament Summary</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2 text-sm">
+            <div>Total Players: {totalPlayers}</div>
+            <div>Total Stations: {totalStations}</div>
+            <div>Games per Round: {totalStations}</div>
+            <div>Players per Round: ~{playersPerRound} active, ~{restingPlayers} resting</div>
+            <div>Total Games: {settings.rounds * totalStations}</div>
+            {settings.timer.enabled && (
+              <div>Round Duration: {settings.timer.duration} minutes</div>
             )}
           </div>
           
+          {/* Validation Messages */}
+          {validation && (
+            <div className="space-y-2">
+              {validation.errors && validation.errors.length > 0 && (
+                <div className="space-y-1">
+                  {validation.errors.map((error, i) => (
+                    <div key={i} className="flex items-start gap-2 text-sm text-destructive">
+                      <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                      <span>{error}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {validation.warnings && validation.warnings.length > 0 && (
+                <div className="space-y-1">
+                  {validation.warnings.map((warning, i) => (
+                    <div key={i} className="flex items-start gap-2 text-sm text-amber-600">
+                      <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                      <span>{warning}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {settings.playersPerTeam % 2 !== 0 && (
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              Players per team must be an even number
+            </div>
+          )}
+          
           {canEdit && (
-            <Button onClick={saveSettings} disabled={isSaving || settings.playersPerTeam % 2 !== 0}>
+            <Button 
+              onClick={saveSettings} 
+              disabled={isSaving || !canSaveSettings}
+              className="w-full sm:w-auto"
+            >
               <Save className="mr-2 h-4 w-4" />
               {isSaving ? 'Saving...' : 'Save Settings'}
             </Button>

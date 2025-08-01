@@ -64,6 +64,18 @@ class TournamentAPI {
     })
   }
   
+  async validateTournament(id) {
+    return this.fetch(`/tournament/${id}/validate`, {
+      method: 'POST'
+    })
+  }
+  
+  async generateSchedule(id) {
+    return this.fetch(`/tournament/${id}/generate-schedule`, {
+      method: 'POST'
+    })
+  }
+  
   // Role management
   async requestRole(tournamentId, data) {
     return this.fetch(`/tournament/${tournamentId}/request-role`, {

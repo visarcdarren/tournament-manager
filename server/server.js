@@ -5,6 +5,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
+import { generateSchedule, validateTournamentSetup, migrateTournamentToV2 } from './scheduleGenerator.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -102,7 +103,9 @@ async function addAuditEntry(tournamentId, entry) {
 async function loadTournament(id) {
   try {
     const data = await fs.readFile(path.join(DATA_DIR, `${id}.json`), 'utf8');
-    return JSON.parse(data);
+    const tournament = JSON.parse(data);
+    // Migrate old tournaments to new format
+    return migrateTournamentToV2(tournament);
   } catch (e) {
     return null;
   }
@@ -175,6 +178,18 @@ async function authenticateScorer(req, res, next) {
 
 // Routes
 
+// Get team names data for name generation
+app.get('/api/team-names', async (req, res) => {
+  try {
+    const teamNamesPath = path.join(__dirname, 'settings', 'team-names.json');
+    const data = await fs.readFile(teamNamesPath, 'utf8');
+    res.json(JSON.parse(data));
+  } catch (error) {
+    console.error('Failed to load team names:', error);
+    res.status(500).json({ error: 'Failed to load team names data' });
+  }
+});
+
 // Get tournament list
 app.get('/api/tournaments', async (req, res) => {
   try {
@@ -204,6 +219,7 @@ app.get('/api/tournaments', async (req, res) => {
 app.post('/api/tournaments', authenticate, async (req, res) => {
   const tournament = {
     id: uuidv4(),
+    version: 2,
     ...req.body,
     adminDeviceId: req.deviceId,
     devices: [{
@@ -436,6 +452,66 @@ app.post('/api/tournament/:id/revoke-role', authenticateAdmin, async (req, res) 
   res.json({ success: true });
 });
 
+// Generate schedule endpoint
+app.post('/api/tournament/:id/generate-schedule', authenticateAdmin, async (req, res) => {
+  try {
+    const tournament = req.tournament;
+    
+    // Validate setup first
+    const validation = validateTournamentSetup(tournament);
+    if (!validation.valid) {
+      return res.status(400).json({ 
+        error: 'Invalid tournament setup',
+        details: validation
+      });
+    }
+    
+    // Generate the schedule
+    const schedule = generateSchedule(tournament);
+    tournament.schedule = schedule;
+    tournament.currentState = {
+      status: 'active',
+      currentRound: 1
+    };
+    
+    await saveTournament(tournament.id, tournament);
+    await addAuditEntry(tournament.id, {
+      deviceId: req.deviceId,
+      deviceName: 'Admin',
+      action: 'GENERATE_SCHEDULE',
+      details: { 
+        rounds: schedule.length,
+        totalGames: schedule.reduce((sum, round) => sum + round.games.length, 0)
+      }
+    });
+    
+    // Broadcast update
+    broadcastToTournament(tournament.id, {
+      type: 'tournament-update',
+      data: tournament
+    });
+    
+    res.json({ 
+      success: true, 
+      schedule,
+      validation 
+    });
+  } catch (error) {
+    console.error('Schedule generation error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate schedule',
+      message: error.message 
+    });
+  }
+});
+
+// Validate tournament setup endpoint
+app.post('/api/tournament/:id/validate', authenticateAdmin, async (req, res) => {
+  const tournament = req.tournament;
+  const validation = validateTournamentSetup(tournament);
+  res.json(validation);
+});
+
 // Score game
 app.post('/api/tournament/:id/score', authenticateScorer, async (req, res) => {
   const { gameId, result } = req.body;
@@ -456,6 +532,15 @@ app.post('/api/tournament/:id/score', authenticateScorer, async (req, res) => {
       game.status = 'completed';
       gameFound = true;
       
+      // Build player lists for logging
+      const team1Names = game.team1Players ? 
+        game.team1Players.map(p => `${p.playerName} (${p.teamName})`).join(' & ') :
+        `${game.player1.playerName} (${game.player1.teamName})`;
+      
+      const team2Names = game.team2Players ? 
+        game.team2Players.map(p => `${p.playerName} (${p.teamName})`).join(' & ') :
+        `${game.player2.playerName} (${game.player2.teamName})`;
+      
       await saveTournament(tournament.id, tournament);
       await addAuditEntry(tournament.id, {
         deviceId: req.deviceId,
@@ -465,8 +550,9 @@ app.post('/api/tournament/:id/score', authenticateScorer, async (req, res) => {
           gameId,
           round: round.round,
           station: game.station,
-          player1: `${game.player1.playerName} (${game.player1.teamName})`,
-          player2: `${game.player2.playerName} (${game.player2.teamName})`,
+          gameType: game.gameType || 'unknown',
+          team1: team1Names,
+          team2: team2Names,
           result,
           previousResult
         }
@@ -632,6 +718,107 @@ app.post('/api/tournament/import', authenticate, async (req, res) => {
   
   await saveTournament(tournament.id, tournament);
   res.json({ id: tournament.id });
+});
+
+// Superuser login endpoint
+app.post('/api/tournament/:id/superuser-login', authenticate, async (req, res) => {
+  const { password } = req.body;
+  const tournamentId = req.params.id;
+  
+  if (!superuserConfig.enabled) {
+    return res.status(403).json({ error: 'Superuser login disabled' });
+  }
+  
+  // Verify password
+  const isValidPassword = superuserConfig.passwordHash 
+    ? crypto.createHash('sha256').update(password).digest('hex') === superuserConfig.passwordHash
+    : password === superuserConfig.password;
+    
+  if (!isValidPassword) {
+    // Add delay to prevent brute force
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return res.status(401).json({ error: 'Invalid password' });
+  }
+  
+  // Load tournament
+  const tournament = await loadTournament(tournamentId);
+  if (!tournament) {
+    return res.status(404).json({ error: 'Tournament not found' });
+  }
+  
+  // Grant admin access to this device
+  const deviceId = req.deviceId;
+  const deviceName = req.headers['x-device-name'] || 'Superuser Device';
+  
+  // Update devices array
+  tournament.devices = tournament.devices || [];
+  const existingDevice = tournament.devices.find(d => d.id === deviceId);
+  
+  if (existingDevice) {
+    existingDevice.role = 'ADMIN';
+    existingDevice.name = deviceName;
+  } else {
+    tournament.devices.push({
+      id: deviceId,
+      name: deviceName,
+      role: 'ADMIN'
+    });
+  }
+  
+  // Save tournament
+  await saveTournament(tournament.id, tournament);
+  
+  // Log the action
+  await addAuditEntry(tournament.id, {
+    deviceId: deviceId,
+    deviceName: 'Superuser',
+    action: 'SUPERUSER_LOGIN',
+    details: { 
+      grantedAdmin: true,
+      timestamp: new Date().toISOString()
+    }
+  });
+  
+  // Broadcast the update
+  broadcastToTournament(tournament.id, {
+    type: 'role-granted',
+    data: { deviceId, role: 'ADMIN' }
+  });
+  
+  console.log('[SUPERUSER] Admin access granted to device:', deviceId);
+  
+  res.json({ 
+    success: true, 
+    message: 'Admin access granted via superuser login'
+  });
+});
+
+// Check device status endpoint
+app.get('/api/tournament/:id/device-status', authenticate, async (req, res) => {
+  const tournament = await loadTournament(req.params.id);
+  if (!tournament) {
+    return res.status(404).json({ error: 'Tournament not found' });
+  }
+  
+  const device = tournament.devices?.find(d => d.id === req.deviceId);
+  const isOriginalAdmin = tournament.adminDeviceId === req.deviceId;
+  
+  res.json({
+    deviceId: req.deviceId,
+    currentRole: device?.role || 'VIEWER',
+    isOriginalAdmin,
+    hasPendingRequest: tournament.pendingRequests?.some(r => r.deviceId === req.deviceId)
+  });
+});
+
+// Check pending requests (admin only)
+app.get('/api/tournament/:id/pending-requests', authenticateAdmin, async (req, res) => {
+  const tournament = req.tournament;
+  res.json({
+    pendingRequests: tournament.pendingRequests || [],
+    totalRequests: (tournament.pendingRequests || []).length,
+    devices: tournament.devices || []
+  });
 });
 
 // Delete tournament (admin only)

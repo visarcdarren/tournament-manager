@@ -1,7 +1,7 @@
 {
   "name": "Tournament Manager",
   "short_name": "TournamentMgr",
-  "description": "Professional tournament management for shuffleboard and darts",
+  "description": "Tournament management for game parties",
   "theme_color": "#1e293b",
   "background_color": "#0f172a",
   "display": "standalone",
