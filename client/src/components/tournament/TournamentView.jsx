@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Shield, Eye, Download, Trash2 } from 'lucide-react'
+import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Shield, Eye, Download, Trash2, KeyRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -22,6 +22,7 @@ import Leaderboard from './Leaderboard'
 import CompletionScreen from './CompletionScreen'
 import DevicePermissions from './DevicePermissions'
 import RoleRequestDialog from './RoleRequestDialog'
+import SuperuserLoginDialog from './SuperuserLoginDialog'
 import { getCurrentRound, isTournamentComplete } from '@/utils/tournament'
 
 export default function TournamentView({ tournamentId }) {
@@ -32,6 +33,7 @@ export default function TournamentView({ tournamentId }) {
   const [activeTab, setActiveTab] = useState('setup')
   const [showRoleRequest, setShowRoleRequest] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showSuperuserLogin, setShowSuperuserLogin] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   
   const { tournament, userRole, isLoading } = tournamentStore
@@ -243,9 +245,20 @@ export default function TournamentView({ tournamentId }) {
             </div>
             <div className="flex items-center gap-2">
               {userRole === 'VIEWER' && !isComplete && (
-                <Button variant="outline" onClick={() => setShowRoleRequest(true)}>
-                  Request Scorer Access
-                </Button>
+                <>
+                  <Button variant="outline" onClick={() => setShowRoleRequest(true)}>
+                    Request Scorer Access
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={() => setShowSuperuserLogin(true)}
+                    title="Superuser Login"
+                    className="h-9 w-9"
+                  >
+                    <KeyRound className="h-5 w-5" />
+                  </Button>
+                </>
               )}
               {isAdmin && (
                 <>
@@ -333,6 +346,14 @@ export default function TournamentView({ tournamentId }) {
         open={showRoleRequest} 
         onOpenChange={setShowRoleRequest}
         tournamentId={tournamentId}
+      />
+      
+      {/* Superuser Login Dialog */}
+      <SuperuserLoginDialog
+        open={showSuperuserLogin}
+        onOpenChange={setShowSuperuserLogin}
+        tournamentId={tournamentId}
+        onSuccess={loadTournament}
       />
       
       {/* Delete Confirmation Dialog */}
