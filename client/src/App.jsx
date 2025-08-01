@@ -14,11 +14,10 @@ function App() {
   // Initialize device store
   useEffect(() => {
     try {
-      const deviceStore = useDeviceStore.getState()
-      deviceStore.initializeDevice()
-      window.deviceStore = useDeviceStore
+      useDeviceStore.getState().initializeDevice()
+      window.deviceStore = useDeviceStore.getState()
       setIsInitialized(true)
-      console.log('Device store initialized:', deviceStore.deviceId)
+      console.log('Device initialized with permanent ID:', useDeviceStore.getState().deviceId)
     } catch (e) {
       console.error('Failed to initialize device store:', e)
       setError(e.message)

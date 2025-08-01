@@ -2,6 +2,9 @@
 // In development, use the Vite proxy
 const API_BASE_URL = import.meta.env.DEV ? '/api' : '/api'
 
+// Import the device store to get device ID reliably
+import useDeviceStore from '../stores/deviceStore'
+
 class TournamentAPI {
   constructor() {
     this.baseURL = API_BASE_URL
@@ -9,19 +12,18 @@ class TournamentAPI {
   
   // Helper to get auth headers
   getHeaders(additionalHeaders = {}) {
-    const deviceStore = window.deviceStore
-    if (!deviceStore) return { 'Content-Type': 'application/json', ...additionalHeaders }
+    // Always use the current device store state
+    const deviceStore = useDeviceStore.getState()
     
-    // Handle both direct access and Zustand store access
-    const state = typeof deviceStore.getState === 'function' ? deviceStore.getState() : deviceStore
-    const authHeaders = state.getAuthHeaders ? state.getAuthHeaders() : {
-      'X-Device-ID': state.deviceId,
-      'X-Device-Name': state.deviceName || 'Unknown Device'
+    if (!deviceStore || !deviceStore.deviceId) {
+      console.error('Device store not properly initialized!')
+      return { 'Content-Type': 'application/json', ...additionalHeaders }
     }
     
     return {
       'Content-Type': 'application/json',
-      ...authHeaders,
+      'X-Device-ID': deviceStore.deviceId,
+      'X-Device-Name': deviceStore.deviceName || 'Unknown Device',
       ...additionalHeaders
     }
   }
@@ -159,13 +161,8 @@ class TournamentAPI {
   
   // SSE connection
   connectToEvents(tournamentId, handlers) {
-    const deviceStore = window.deviceStore
-    let deviceId
-    
-    if (deviceStore) {
-      const state = typeof deviceStore.getState === 'function' ? deviceStore.getState() : deviceStore
-      deviceId = state.deviceId
-    }
+    const deviceStore = useDeviceStore.getState()
+    const deviceId = deviceStore.deviceId
     
     if (!deviceId) {
       console.error('No device ID available for SSE connection')

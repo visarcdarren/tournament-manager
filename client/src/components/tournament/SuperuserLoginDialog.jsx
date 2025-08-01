@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { KeyRound } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import useDeviceStore from '@/stores/deviceStore'
 
 export default function SuperuserLoginDialog({ open, onOpenChange, tournamentId, onSuccess, isGlobalMode = false }) {
   const [password, setPassword] = useState('')
@@ -54,13 +55,13 @@ export default function SuperuserLoginDialog({ open, onOpenChange, tournamentId,
       } else {
         // Original tournament-specific login
         const response = await fetch(`/api/tournament/${tournamentId}/superuser-login`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Device-ID': localStorage.getItem('deviceId'),
-            'X-Device-Name': localStorage.getItem('deviceName') || 'Superuser Device'
-          },
-          body: JSON.stringify({ password })
+        method: 'POST',
+        headers: {
+        'Content-Type': 'application/json',
+        'X-Device-ID': useDeviceStore.getState().deviceId,
+        'X-Device-Name': useDeviceStore.getState().deviceName || 'Superuser Device'
+        },
+        body: JSON.stringify({ password })
         })
         
         const data = await response.json()

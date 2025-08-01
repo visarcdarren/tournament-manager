@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Shield, Eye, Download, Trash2, KeyRound, Calendar } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -32,6 +32,7 @@ export default function TournamentView({ tournamentId }) {
   const deviceStore = useDeviceStore()
   const tournamentStore = useTournamentStore()
   const [activeTab, setActiveTab] = useState('setup')
+  const manualTabChangeRef = useRef(false) // Use ref instead of state for immediate updates
   const [showRoleRequest, setShowRoleRequest] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showSuperuserLogin, setShowSuperuserLogin] = useState(false)
@@ -51,9 +52,23 @@ export default function TournamentView({ tournamentId }) {
     }
   }, [tournamentId])
   
-  // Update active tab based on tournament state
+  // Reset manual flag when tournament status changes significantly
   useEffect(() => {
     if (!tournament) return
+    
+    // Reset manual flag if tournament becomes active or completed
+    if (tournament.currentState?.status === 'active' || 
+        tournament.currentState?.status === 'completed' ||
+        (tournament.schedule?.length > 0 && isTournamentComplete(tournament))) {
+      manualTabChangeRef.current = false
+    }
+  }, [tournament?.currentState?.status, tournament?.schedule])
+
+  // Update active tab based on tournament state (but not if user manually changed it)
+  useEffect(() => {
+    if (!tournament || manualTabChangeRef.current) {
+      return
+    }
     
     // Only show completion screen if tournament is actually complete
     if (tournament.currentState?.status === 'completed' || (tournament.schedule?.length > 0 && isTournamentComplete(tournament))) {
@@ -74,8 +89,8 @@ export default function TournamentView({ tournamentId }) {
       tournamentStore.setTournament(data)
       tournamentStore.setUserRole(data.userRole || 'VIEWER')
       
-      // Update device role
-      deviceStore.setRole(data.userRole || 'VIEWER')
+      // Don't store role in device store - it's tournament-specific
+      // Role comes from server and is stored in tournament store only
     } catch (error) {
       toast({
         title: 'Error',
@@ -119,7 +134,7 @@ export default function TournamentView({ tournamentId }) {
         }
       },
       'role-granted': (data) => {
-        if (data.deviceId === deviceStore.deviceId) {
+        if (data.deviceId === useDeviceStore.getState().deviceId) {
           toast({
             title: 'Access Granted',
             description: 'You now have scorer permissions'
@@ -128,7 +143,7 @@ export default function TournamentView({ tournamentId }) {
         }
       },
       'role-revoked': (data) => {
-        if (data.deviceId === deviceStore.deviceId) {
+        if (data.deviceId === useDeviceStore.getState().deviceId) {
           toast({
             title: 'Access Revoked',
             description: 'Your scorer permissions have been removed',
@@ -286,7 +301,10 @@ export default function TournamentView({ tournamentId }) {
         {isComplete && tournament.schedule?.length > 0 ? (
           <CompletionScreen tournament={tournament} />
         ) : (
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <Tabs value={activeTab} onValueChange={(value) => {
+            manualTabChangeRef.current = true
+            setActiveTab(value)
+          }}>
             <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="setup" disabled={!isAdmin}>
                 <Settings className="mr-2 h-4 w-4" />
@@ -320,7 +338,10 @@ export default function TournamentView({ tournamentId }) {
               <TournamentSetup 
                 tournament={tournament} 
                 isAdmin={isAdmin} 
-                onNavigateToTeams={() => setActiveTab('teams')}
+                onNavigateToTeams={() => {
+                  manualTabChangeRef.current = true
+                  setActiveTab('teams')
+                }}
               />
             </TabsContent>
             
