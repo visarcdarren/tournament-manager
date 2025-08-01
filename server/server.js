@@ -35,7 +35,7 @@ ensureDataDir();
 let superuserConfig = {};
 async function loadSuperuserConfig() {
   try {
-    const configPath = path.join(DATA_DIR, 'superuser-config.json');
+    const configPath = path.join(__dirname, 'settings', 'superuser-config.json');
     
     try {
       const data = await fs.readFile(configPath, 'utf8');
@@ -198,25 +198,36 @@ app.get('/api/tournaments', async (req, res) => {
   res.setHeader('Expires', '0')
   
   try {
+    console.log('[TOURNAMENTS] Attempting to read directory:', DATA_DIR)
     const files = await fs.readdir(DATA_DIR);
+    console.log('[TOURNAMENTS] Files found:', files)
     const tournaments = [];
     
     for (const file of files) {
       if (file.endsWith('.json') && !file.includes('-audit')) {
-        const data = await fs.readFile(path.join(DATA_DIR, file), 'utf8');
-        const tournament = JSON.parse(data);
-        tournaments.push({
-          id: tournament.id,
-          name: tournament.name,
-          status: tournament.currentState.status,
-          created: tournament.created
-        });
+        console.log('[TOURNAMENTS] Processing file:', file)
+        try {
+          const data = await fs.readFile(path.join(DATA_DIR, file), 'utf8');
+          const tournament = JSON.parse(data);
+          console.log('[TOURNAMENTS] Parsed tournament:', { id: tournament.id, name: tournament.name })
+          tournaments.push({
+            id: tournament.id,
+            name: tournament.name,
+            status: tournament.currentState.status,
+            created: tournament.created
+          });
+        } catch (fileError) {
+          console.error('[TOURNAMENTS] Error processing file:', file, fileError)
+          // Skip this file and continue with others
+        }
       }
     }
     
+    console.log('[TOURNAMENTS] Returning tournaments:', tournaments.length)
     res.json(tournaments);
   } catch (e) {
-    res.json([]);
+    console.error('[TOURNAMENTS] Critical error:', e)
+    res.status(500).json({ error: 'Failed to load tournaments', details: e.message });
   }
 });
 
@@ -273,8 +284,8 @@ app.get('/api/tournament/:id', authenticate, async (req, res) => {
   }
 });
 
-// Update tournament (admin only)
-app.put('/api/tournament/:id', authenticateAdmin, async (req, res) => {
+// Update tournament (admin or superuser)
+app.put('/api/tournament/:id', authenticateSuperuser, async (req, res) => {
   await saveTournament(req.params.id, req.body);
   
   broadcastToTournament(req.params.id, {
@@ -391,8 +402,8 @@ app.post('/api/tournament/:id/request-role', authenticate, async (req, res) => {
   }
 });
 
-// Grant role (admin only)
-app.post('/api/tournament/:id/grant-role', authenticateAdmin, async (req, res) => {
+// Grant role (admin or superuser)
+app.post('/api/tournament/:id/grant-role', authenticateSuperuser, async (req, res) => {
   const { deviceId, role, stations } = req.body;
   const tournament = req.tournament;
   
@@ -433,8 +444,8 @@ app.post('/api/tournament/:id/grant-role', authenticateAdmin, async (req, res) =
   res.json({ success: true });
 });
 
-// Revoke role (admin only)
-app.post('/api/tournament/:id/revoke-role', authenticateAdmin, async (req, res) => {
+// Revoke role (admin or superuser)
+app.post('/api/tournament/:id/revoke-role', authenticateSuperuser, async (req, res) => {
   const { deviceId } = req.body;
   const tournament = req.tournament;
   
@@ -462,8 +473,8 @@ app.post('/api/tournament/:id/revoke-role', authenticateAdmin, async (req, res) 
   res.json({ success: true });
 });
 
-// Generate schedule endpoint
-app.post('/api/tournament/:id/generate-schedule', authenticateAdmin, async (req, res) => {
+// Generate schedule endpoint (admin or superuser)
+app.post('/api/tournament/:id/generate-schedule', authenticateSuperuser, async (req, res) => {
   try {
     const tournament = req.tournament;
     
@@ -515,8 +526,8 @@ app.post('/api/tournament/:id/generate-schedule', authenticateAdmin, async (req,
   }
 });
 
-// Validate tournament setup endpoint
-app.post('/api/tournament/:id/validate', authenticateAdmin, async (req, res) => {
+// Validate tournament setup endpoint (admin or superuser)
+app.post('/api/tournament/:id/validate', authenticateSuperuser, async (req, res) => {
   const tournament = req.tournament;
   const validation = validateTournamentSetup(tournament);
   res.json(validation);
@@ -585,8 +596,8 @@ app.post('/api/tournament/:id/score', authenticateScorer, async (req, res) => {
   res.json({ success: true });
 });
 
-// Timer control (admin only)
-app.post('/api/tournament/:id/round/:round/timer/start', authenticateAdmin, async (req, res) => {
+// Timer control (admin or superuser)
+app.post('/api/tournament/:id/round/:round/timer/start', authenticateSuperuser, async (req, res) => {
   const { duration = 30 } = req.body;
   const tournament = req.tournament;
   const roundNum = parseInt(req.params.round);
@@ -650,8 +661,8 @@ app.get('/api/tournament/:id/round/:round/timer', authenticate, async (req, res)
   res.json(round.timer || { status: 'not-started' });
 });
 
-// Get audit log
-app.get('/api/tournament/:id/audit', authenticateAdmin, async (req, res) => {
+// Get audit log (admin or superuser)
+app.get('/api/tournament/:id/audit', authenticateSuperuser, async (req, res) => {
   try {
     const data = await fs.readFile(path.join(DATA_DIR, `${req.params.id}-audit.json`), 'utf8');
     res.json(JSON.parse(data));
@@ -826,8 +837,8 @@ app.get('/api/tournament/:id/device-status', authenticate, async (req, res) => {
   });
 });
 
-// Check pending requests (admin only)
-app.get('/api/tournament/:id/pending-requests', authenticateAdmin, async (req, res) => {
+// Check pending requests (admin or superuser)
+app.get('/api/tournament/:id/pending-requests', authenticateSuperuser, async (req, res) => {
   // Prevent caching for real-time pending requests
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
   res.setHeader('Pragma', 'no-cache')
@@ -841,8 +852,61 @@ app.get('/api/tournament/:id/pending-requests', authenticateAdmin, async (req, r
   });
 });
 
-// Delete tournament (admin only)
-app.delete('/api/tournament/:id', authenticateAdmin, async (req, res) => {
+// Superuser password verification endpoint
+app.post('/api/superuser-verify', authenticate, async (req, res) => {
+  const { password } = req.body;
+  
+  if (!superuserConfig.enabled) {
+    return res.status(403).json({ error: 'Superuser login disabled' });
+  }
+  
+  // Verify password
+  const isValidPassword = superuserConfig.passwordHash 
+    ? crypto.createHash('sha256').update(password).digest('hex') === superuserConfig.passwordHash
+    : password === superuserConfig.password;
+    
+  if (!isValidPassword) {
+    // Add delay to prevent brute force
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return res.status(401).json({ error: 'Invalid password' });
+  }
+  
+  res.json({ 
+    success: true, 
+    message: 'Superuser password verified'
+  });
+});
+
+// Superuser authentication middleware
+async function authenticateSuperuser(req, res, next) {
+  const superuserPassword = req.headers['x-superuser-password'];
+  
+  if (!superuserPassword) {
+    return authenticateAdmin(req, res, next);
+  }
+  
+  // Verify superuser password
+  const isValidPassword = superuserConfig.passwordHash 
+    ? crypto.createHash('sha256').update(superuserPassword).digest('hex') === superuserConfig.passwordHash
+    : superuserPassword === superuserConfig.password;
+    
+  if (!isValidPassword) {
+    return res.status(401).json({ error: 'Invalid superuser password' });
+  }
+  
+  // Superuser has access to any tournament
+  authenticate(req, res, async () => {
+    const tournament = await loadTournament(req.params.id);
+    if (!tournament) {
+      return res.status(404).json({ error: 'Tournament not found' });
+    }
+    req.tournament = tournament;
+    next();
+  });
+}
+
+// Delete tournament (admin or superuser)
+app.delete('/api/tournament/:id', authenticateSuperuser, async (req, res) => {
   const tournamentId = req.params.id;
   
   try {
