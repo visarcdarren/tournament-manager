@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Edit2, Trash2, Users, UserPlus, Check, X } from 'lucide-react'
+import { Plus, Edit2, Trash2, Users, UserPlus, Check, X, Play, AlertCircle } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast'
 import api from '@/utils/api'
 import useTournamentStore from '@/stores/tournamentStore'
 import { v4 as uuidv4 } from 'uuid'
+import { generateSchedule } from '@/utils/tournament'
 
 export default function TeamManagement({ tournament, isAdmin }) {
   const { toast } = useToast()
@@ -20,10 +21,12 @@ export default function TeamManagement({ tournament, isAdmin }) {
   const [editingPlayer, setEditingPlayer] = useState(null)
   const [newTeamName, setNewTeamName] = useState('')
   const [newPlayerName, setNewPlayerName] = useState('')
+  const [isStarting, setIsStarting] = useState(false)
   
   const canEdit = isAdmin && tournament.currentState.status === 'setup'
   const totalPlayers = tournament.teams.reduce((sum, team) => sum + team.players.length, 0)
   const targetPlayers = tournament.settings.teams * tournament.settings.playersPerTeam
+  const isSetupComplete = totalPlayers === targetPlayers && tournament.teams.length === tournament.settings.teams
   
   const addTeam = async () => {
     if (!newTeamName.trim()) {
@@ -234,6 +237,41 @@ export default function TeamManagement({ tournament, isAdmin }) {
     }
   }
   
+  const startTournament = async () => {
+    setIsStarting(true)
+    
+    try {
+      // Generate schedule
+      const schedule = generateSchedule(tournament)
+      
+      // Update tournament state
+      const updatedTournament = {
+        ...tournament,
+        schedule,
+        currentState: {
+          ...tournament.currentState,
+          status: 'active',
+          currentRound: 1
+        }
+      }
+      
+      await api.updateTournament(tournament.id, updatedTournament)
+      tournamentStore.setTournament(updatedTournament)
+      
+      toast({
+        title: 'Tournament Started!',
+        description: 'The tournament has begun. Good luck to all teams!'
+      })
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to start tournament',
+        variant: 'destructive'
+      })
+      setIsStarting(false)
+    }
+  }
+  
   return (
     <div className="space-y-6">
       {/* Summary Card */}
@@ -258,11 +296,37 @@ export default function TeamManagement({ tournament, isAdmin }) {
             </div>
           </div>
           
-          {canEdit && tournament.teams.length < tournament.settings.teams && (
-            <Button onClick={() => setShowAddTeam(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Team
-            </Button>
+          <div className="flex gap-2">
+            {canEdit && tournament.teams.length < tournament.settings.teams && (
+              <Button onClick={() => setShowAddTeam(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Team
+              </Button>
+            )}
+            
+            {canEdit && (
+              <Button 
+                onClick={startTournament}
+                disabled={!isSetupComplete || isStarting}
+                variant={isSetupComplete ? "default" : "outline"}
+                className={isSetupComplete ? "bg-green-600 hover:bg-green-700" : ""}
+              >
+                <Play className="mr-2 h-4 w-4" />
+                {isStarting ? 'Starting...' : 'Start Tournament'}
+              </Button>
+            )}
+          </div>
+          
+          {canEdit && !isSetupComplete && (
+            <div className="mt-4 flex items-center gap-2 text-sm text-amber-600">
+              <AlertCircle className="h-4 w-4" />
+              <span>
+                {tournament.teams.length < tournament.settings.teams
+                  ? `Add ${tournament.settings.teams - tournament.teams.length} more team(s)`
+                  : `Add ${targetPlayers - totalPlayers} more player(s) to start`
+                }
+              </span>
+            </div>
           )}
         </CardContent>
       </Card>
