@@ -178,6 +178,18 @@ async function authenticateScorer(req, res, next) {
 
 // Routes
 
+// Get team names data for name generation
+app.get('/api/team-names', async (req, res) => {
+  try {
+    const teamNamesPath = path.join(__dirname, 'settings', 'team-names.json');
+    const data = await fs.readFile(teamNamesPath, 'utf8');
+    res.json(JSON.parse(data));
+  } catch (error) {
+    console.error('Failed to load team names:', error);
+    res.status(500).json({ error: 'Failed to load team names data' });
+  }
+});
+
 // Get tournament list
 app.get('/api/tournaments', async (req, res) => {
   try {
