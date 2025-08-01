@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Plus, Edit2, Trash2, Users, UserPlus, Check, X, Play, AlertCircle } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Plus, Edit2, Trash2, Users, UserPlus, Check, X, Play, AlertCircle, Shuffle } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast'
 import api from '@/utils/api'
 import useTournamentStore from '@/stores/tournamentStore'
 import { v4 as uuidv4 } from 'uuid'
+import { generateRandomTeamName } from '@/utils/teamNameGenerator'
 
 export default function TeamManagement({ tournament, isAdmin }) {
   const { toast } = useToast()
@@ -26,6 +27,34 @@ export default function TeamManagement({ tournament, isAdmin }) {
   const totalPlayers = tournament.teams.reduce((sum, team) => sum + team.players.length, 0)
   const targetPlayers = tournament.settings.teams * tournament.settings.playersPerTeam
   const isSetupComplete = totalPlayers === targetPlayers && tournament.teams.length === tournament.settings.teams
+  
+  // Generate a new team name suggestion
+  const generateNewTeamName = async () => {
+    try {
+      const existingNames = tournament.teams.map(team => team.name)
+      let suggestedName = await generateRandomTeamName()
+      
+      // If by chance we get a duplicate, try a few more times
+      let attempts = 0
+      while (existingNames.includes(suggestedName) && attempts < 5) {
+        suggestedName = await generateRandomTeamName()
+        attempts++
+      }
+      
+      setNewTeamName(suggestedName)
+    } catch (error) {
+      console.error('Error generating team name:', error)
+      // Fallback to a simple name
+      setNewTeamName('Team ' + (tournament.teams.length + 1))
+    }
+  }
+  
+  // Auto-generate a team name when the add team dialog opens
+  useEffect(() => {
+    if (showAddTeam && !newTeamName) {
+      generateNewTeamName()
+    }
+  }, [showAddTeam])
   
   const addTeam = async () => {
     if (!newTeamName.trim()) {
@@ -432,7 +461,10 @@ export default function TeamManagement({ tournament, isAdmin }) {
       </div>
       
       {/* Add Team Dialog */}
-      <Dialog open={showAddTeam} onOpenChange={setShowAddTeam}>
+      <Dialog open={showAddTeam} onOpenChange={(open) => {
+        setShowAddTeam(open)
+        if (!open) setNewTeamName('')
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Team</DialogTitle>
@@ -443,13 +475,25 @@ export default function TeamManagement({ tournament, isAdmin }) {
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="team-name">Team Name</Label>
-              <Input
-                id="team-name"
-                value={newTeamName}
-                onChange={(e) => setNewTeamName(e.target.value)}
-                placeholder="Red Dragons"
-                onKeyDown={(e) => e.key === 'Enter' && addTeam()}
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="team-name"
+                  value={newTeamName}
+                  onChange={(e) => setNewTeamName(e.target.value)}
+                  placeholder="Red Dragons"
+                  onKeyDown={(e) => e.key === 'Enter' && addTeam()}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={generateNewTeamName}
+                  title="Generate random team name"
+                >
+                  <Shuffle className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
           <DialogFooter>
