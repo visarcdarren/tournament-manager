@@ -251,66 +251,70 @@ export default function TournamentView({ tournamentId }) {
   }
   
   return (
-    <div className="min-h-screen bg-background" style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: '#f8fafc' }}>
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b bg-card" style={{ borderBottom: '1px solid #334155', backgroundColor: '#1e293b' }}>
-        <div className="mx-auto max-w-7xl px-4 py-4" style={{ maxWidth: '80rem', padding: '1rem' }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="h-9 w-9">
-                <ArrowLeft className="h-5 w-5" />
+      <div className="border-b bg-card">
+        <div className="mx-auto max-w-7xl px-4 py-3 sm:py-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0">
+                <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
-              <div>
-                <h1 className="text-2xl font-bold">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold truncate">
                   {tournament.name}
                 </h1>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">
-                    <Eye className="h-3 w-3" />
+                    <Eye className="h-3 w-3 flex-shrink-0" />
                     {isCreator ? 'Creator' : 'Viewer'}
                   </span>
                   {tournament.currentState.status === 'active' && (
                     <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
+                      <Clock className="h-3 w-3 flex-shrink-0" />
                       Round {currentRound} of {tournament.settings.rounds}
                     </span>
                   )}
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
               {isCreator && (
                 <>
                   {tournament.isPublic && (
-                    <Button variant="outline" onClick={handleShare} className="text-blue-600 border-blue-200 hover:bg-blue-50">
+                    <Button variant="outline" onClick={handleShare} className="text-blue-600 border-blue-200 hover:bg-blue-50 w-full sm:w-auto">
                       <Share className="mr-2 h-4 w-4" />
-                      Share
+                      <span className="hidden sm:inline">Share</span>
                     </Button>
                   )}
-                  <Button variant="outline" onClick={togglePublicStatus}>
+                  <Button variant="outline" onClick={togglePublicStatus} className="w-full sm:w-auto">
                     {tournament.isPublic ? (
                       <>
                         <Lock className="mr-2 h-4 w-4" />
-                        Make Private
+                        <span className="hidden sm:inline">Make Private</span>
+                        <span className="sm:hidden">Private</span>
                       </>
                     ) : (
                       <>
                         <Globe className="mr-2 h-4 w-4" />
-                        Make Public
+                        <span className="hidden sm:inline">Make Public</span>
+                        <span className="sm:hidden">Public</span>
                       </>
                     )}
                   </Button>
-                  <Button variant="outline" size="icon" onClick={exportTournament} className="h-9 w-9">
-                    <Download className="h-5 w-5" />
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => setShowDeleteDialog(true)}
-                    className="h-9 w-9 hover:bg-destructive hover:text-destructive-foreground"
-                  >
-                    <Trash2 className="h-5 w-5" />
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="icon" onClick={exportTournament} className="h-9 w-9 flex-shrink-0">
+                      <Download className="h-4 w-4 sm:h-5 sm:w-5" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={() => setShowDeleteDialog(true)}
+                      className="h-9 w-9 hover:bg-destructive hover:text-destructive-foreground flex-shrink-0"
+                    >
+                      <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
+                    </Button>
+                  </div>
                 </>
               )}
             </div>
@@ -319,7 +323,7 @@ export default function TournamentView({ tournamentId }) {
       </div>
       
       {/* Main Content */}
-      <div className="mx-auto max-w-7xl p-4" style={{ maxWidth: '80rem', padding: '1rem' }}>
+      <div className="mx-auto max-w-7xl p-4 sm:p-6">
         {isComplete && tournament.schedule?.length > 0 ? (
           <CompletionScreen tournament={tournament} />
         ) : (
@@ -327,26 +331,26 @@ export default function TournamentView({ tournamentId }) {
             manualTabChangeRef.current = true
             setActiveTab(value)
           }}>
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="setup" disabled={!isCreator}>
-                <Settings className="mr-2 h-4 w-4" />
-                Setup
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 h-auto">
+              <TabsTrigger value="setup" disabled={!isCreator} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                <Settings className="h-4 w-4 flex-shrink-0" />
+                <span className="text-xs sm:text-sm">Setup</span>
               </TabsTrigger>
-              <TabsTrigger value="teams" disabled={!isCreator}>
-                <Users className="mr-2 h-4 w-4" />
-                Teams
+              <TabsTrigger value="teams" disabled={!isCreator} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                <Users className="h-4 w-4 flex-shrink-0" />
+                <span className="text-xs sm:text-sm">Teams</span>
               </TabsTrigger>
-              <TabsTrigger value="schedule" disabled={!tournament.schedule || tournament.schedule.length === 0}>
-                <Calendar className="mr-2 h-4 w-4" />
-                Schedule
+              <TabsTrigger value="schedule" disabled={!tournament.schedule || tournament.schedule.length === 0} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                <Calendar className="h-4 w-4 flex-shrink-0" />
+                <span className="text-xs sm:text-sm">Schedule</span>
               </TabsTrigger>
-              <TabsTrigger value="live" disabled={tournament.currentState.status !== 'active'}>
-                <Play className="mr-2 h-4 w-4" />
-                Live
+              <TabsTrigger value="live" disabled={tournament.currentState.status !== 'active'} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                <Play className="h-4 w-4 flex-shrink-0" />
+                <span className="text-xs sm:text-sm">Live</span>
               </TabsTrigger>
-              <TabsTrigger value="leaderboard">
-                <Trophy className="mr-2 h-4 w-4" />
-                Leaderboard
+              <TabsTrigger value="leaderboard" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4 col-span-2 sm:col-span-1">
+                <Trophy className="h-4 w-4 flex-shrink-0" />
+                <span className="text-xs sm:text-sm">Leaderboard</span>
               </TabsTrigger>
             </TabsList>
             
@@ -419,7 +423,7 @@ export default function TournamentView({ tournamentId }) {
       
       {/* Share Dialog */}
       <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
-        <DialogContent>
+        <DialogContent className="mx-4 max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Share className="h-5 w-5" />
@@ -432,12 +436,12 @@ export default function TournamentView({ tournamentId }) {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Tournament Link:</label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input 
                   type="text" 
                   value={shareUrl}
                   readOnly
-                  className="flex-1 px-3 py-2 text-sm border rounded-md bg-gray-50 text-gray-700"
+                  className="flex-1 px-3 py-2 text-sm border rounded-md bg-gray-50 text-gray-700 min-w-0"
                   onClick={(e) => e.target.select()}
                 />
                 <Button 
@@ -458,13 +462,14 @@ export default function TournamentView({ tournamentId }) {
                       })
                     }
                   }}
+                  className="w-full sm:w-auto flex-shrink-0"
                 >
                   Copy
                 </Button>
               </div>
             </div>
             
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-muted-foreground space-y-1">
               <p>• Others can view tournament progress in real-time</p>
               <p>• They can see schedules, scores, and leaderboards</p>
               <p>• Only you can edit or score games</p>
@@ -493,7 +498,7 @@ export default function TournamentView({ tournamentId }) {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowShareDialog(false)}>
+            <Button variant="outline" onClick={() => setShowShareDialog(false)} className="w-full">
               Close
             </Button>
           </DialogFooter>

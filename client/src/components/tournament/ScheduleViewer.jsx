@@ -118,10 +118,10 @@ export default function ScheduleViewer({ tournament }) {
   }, [])
   
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Tournament Schedule</h2>
-        <Button onClick={handlePrint} variant="outline">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-xl sm:text-2xl font-bold">Tournament Schedule</h2>
+        <Button onClick={handlePrint} variant="outline" size="sm" className="w-full sm:w-auto">
           <Printer className="mr-2 h-4 w-4" />
           Print Schedule
         </Button>
@@ -136,15 +136,16 @@ export default function ScheduleViewer({ tournament }) {
         
         {/* By Round View */}
         <TabsContent value="rounds" className="space-y-4">
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap justify-center sm:justify-start">
             {tournament.schedule.map((_, index) => (
               <Button
                 key={index}
                 variant={selectedRound === index + 1 ? "default" : "outline"}
                 size="sm"
                 onClick={() => setSelectedRound(index + 1)}
+                className="min-w-0 px-2 sm:px-3"
               >
-                Round {index + 1}
+                <span className="text-xs sm:text-sm">Round {index + 1}</span>
               </Button>
             ))}
           </div>
@@ -214,7 +215,15 @@ export default function ScheduleViewer({ tournament }) {
                       </div>
                       {game.status === 'completed' && (
                         <Badge variant="outline" className="text-green-600">
-                          Completed
+                          {game.result === 'draw' ? 'Draw' : 
+                           game.result === 'team1-win' || game.result === 'player1-win' ? 'Winner' :
+                           game.result === 'team2-win' || game.result === 'player2-win' ? 'Winner' :
+                           'Completed'}
+                        </Badge>
+                      )}
+                      {game.result && game.status !== 'completed' && (
+                        <Badge variant="outline" className="text-blue-600">
+                          {game.result === 'draw' ? 'Draw' : 'Scored'}
                         </Badge>
                       )}
                     </div>
@@ -227,7 +236,7 @@ export default function ScheduleViewer({ tournament }) {
         
         {/* By Station View */}
         <TabsContent value="stations" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
             {allStations.map(station => {
               const stationGames = getStationGames(station.id)
               return (
@@ -248,7 +257,10 @@ export default function ScheduleViewer({ tournament }) {
                           <div className="flex items-center justify-between mb-1">
                             <span className="font-semibold">Round {game.round}</span>
                             {game.status === 'completed' && (
-                              <Badge variant="outline" className="text-xs">Done</Badge>
+                              <Badge variant="outline" className="text-xs text-green-600">Done</Badge>
+                            )}
+                            {game.result && game.status !== 'completed' && (
+                              <Badge variant="outline" className="text-xs text-blue-600">Scored</Badge>
                             )}
                           </div>
                           <div className="text-muted-foreground">
@@ -275,19 +287,21 @@ export default function ScheduleViewer({ tournament }) {
         
         {/* By Player View */}
         <TabsContent value="players" className="space-y-4">
-          <div className="grid gap-2 md:grid-cols-3 lg:grid-cols-4">
+          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {allPlayers.map(player => (
               <Button
                 key={player.id}
                 variant={selectedPlayer?.id === player.id ? "default" : "outline"}
                 size="sm"
                 onClick={() => setSelectedPlayer(player)}
-                className="justify-start"
+                className="justify-start text-left h-auto py-2 px-3"
               >
-                {player.name}
-                <span className="ml-2 text-xs text-muted-foreground">
-                  ({player.teamName})
-                </span>
+                <div className="flex flex-col items-start gap-0.5 w-full min-w-0">
+                  <span className="font-medium text-sm truncate w-full">{player.name}</span>
+                  <span className="text-xs text-muted-foreground truncate w-full">
+                    ({player.teamName})
+                  </span>
+                </div>
               </Button>
             ))}
           </div>
@@ -361,8 +375,13 @@ export default function ScheduleViewer({ tournament }) {
                             </div>
                           </div>
                           {game.status === 'completed' && (
-                            <Badge variant="outline" className="mt-2 text-xs">
+                            <Badge variant="outline" className="mt-2 text-xs text-green-600">
                               Completed
+                            </Badge>
+                          )}
+                          {item.result && item.status !== 'completed' && (
+                            <Badge variant="outline" className="mt-2 text-xs text-blue-600">
+                              {item.result === 'draw' ? 'Draw' : 'Scored'}
                             </Badge>
                           )}
                         </div>

@@ -79,25 +79,17 @@ function App() {
   // Error display
   if (error) {
     return (
-      <div className="min-h-screen" style={{ backgroundColor: '#0f172a', color: '#f8fafc', padding: '2rem' }}>
-        <div style={{ maxWidth: '42rem', margin: '0 auto' }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ef4444', marginBottom: '1rem' }}>
+      <div className="min-h-screen bg-background text-foreground p-4 sm:p-8">
+        <div className="max-w-2xl mx-auto">
+          <h1 className="text-lg sm:text-xl font-bold text-destructive mb-4">
             Application Error
           </h1>
-          <pre style={{ backgroundColor: '#1e293b', padding: '1rem', borderRadius: '0.5rem', overflow: 'auto' }}>
+          <pre className="bg-card p-4 rounded-lg overflow-auto text-xs sm:text-sm">
             {error}
           </pre>
           <button 
             onClick={() => window.location.reload()} 
-            style={{
-              marginTop: '1rem',
-              padding: '0.5rem 1rem',
-              backgroundColor: '#3b82f6',
-              color: 'white',
-              border: 'none',
-              borderRadius: '0.25rem',
-              cursor: 'pointer'
-            }}
+            className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
           >
             Reload Page
           </button>
@@ -109,18 +101,9 @@ function App() {
   // Wait for initialization
   if (!isInitialized) {
     return (
-      <div className="min-h-screen" style={{ backgroundColor: '#0f172a', color: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            marginBottom: '1rem',
-            height: '2rem',
-            width: '2rem',
-            border: '4px solid #3b82f6',
-            borderTopColor: 'transparent',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            margin: '0 auto'
-          }}></div>
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
+        <div className="text-center">
+          <div className="mb-4 h-8 w-8 mx-auto border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
           <p>Initializing...</p>
         </div>
       </div>
@@ -129,7 +112,7 @@ function App() {
   
   return (
     <>
-      <div className="min-h-screen" style={{ backgroundColor: '#0f172a', color: '#f8fafc' }}>
+      <div className="min-h-screen bg-background text-foreground">
         {currentView === 'list' ? (
           <TournamentList />
         ) : (

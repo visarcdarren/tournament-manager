@@ -71,34 +71,34 @@ function TournamentCard({ tournament, navigate, showOwnerControls }) {
         className="cursor-pointer"
         onClick={() => navigate(`/tournament/${tournament.id}`)}
       >
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            {tournament.name}
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg pr-16">
+            <span className="truncate">{tournament.name}</span>
             {tournament.isPublic ? (
-              <Globe className="h-4 w-4 text-green-600" title="Public" />
+              <Globe className="h-4 w-4 text-green-600 flex-shrink-0" title="Public" />
             ) : (
-              <Lock className="h-4 w-4 text-gray-500" title="Private" />
+              <Lock className="h-4 w-4 text-gray-500 flex-shrink-0" title="Private" />
             )}
           </CardTitle>
           <CardDescription>
-            <span className="flex items-center gap-4 text-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm">
               <span className="flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                {new Date(tournament.created).toLocaleDateString()}
+                <Calendar className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate">{new Date(tournament.created).toLocaleDateString()}</span>
               </span>
               <span className="flex items-center gap-1">
-                <Users className="h-3 w-3" />
-                {tournament.status}
+                <Users className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate">{tournament.status}</span>
               </span>
               {tournament.isOwner && (
-                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded flex-shrink-0">
                   Owner
                 </span>
               )}
-            </span>
+            </div>
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-0">
           <div className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
             tournament.status === 'completed' ? 'bg-green-100 text-green-800' :
             tournament.status === 'active' ? 'bg-blue-100 text-blue-800' :
@@ -240,61 +240,63 @@ export default function TournamentList() {
   }
   
   return (
-    <div className="min-h-screen bg-background flex flex-col" style={{ backgroundColor: '#0f172a', color: '#f8fafc', minHeight: '100vh' }}>
-      <div className="flex-1 p-4" style={{ flex: 1, padding: '1rem' }}>
-        <div className="mx-auto max-w-6xl" style={{ maxWidth: '72rem', margin: '0 auto' }}>
-        <div className="mb-8 flex items-center justify-between" style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <h1 className="text-4xl font-bold" style={{ fontSize: '2.25rem', fontWeight: 'bold' }}>Tournament Manager</h1>
-            <p className="text-muted-foreground" style={{ color: '#94a3b8' }}>
-              Tournament management for parties
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => document.getElementById('import-file').click()}>
-              <Upload className="mr-2 h-4 w-4" />
-              Import
-            </Button>
-            <input
-              id="import-file"
-              type="file"
-              accept=".json"
-              className="hidden"
-              onChange={handleImport}
-            />
-            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Tournament
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Create New Tournament</DialogTitle>
-                  <DialogDescription>
-                    Enter a name for your tournament. You can configure teams and settings later.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="name">Tournament Name</Label>
-                    <Input
-                      id="name"
-                      value={newTournamentName}
-                      onChange={(e) => setNewTournamentName(e.target.value)}
-                      placeholder="Summer League 2025"
-                      onKeyDown={(e) => e.key === 'Enter' && createTournament()}
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="submit" onClick={createTournament}>
-                    Create Tournament
+    <div className="min-h-screen bg-background flex flex-col">
+      <div className="flex-1 p-3 sm:p-4">
+        <div className="mx-auto max-w-6xl">
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold">Tournament Manager</h1>
+              <p className="text-sm sm:text-base text-muted-foreground">
+                Tournament management for parties
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button variant="outline" onClick={() => document.getElementById('import-file').click()} className="w-full sm:w-auto">
+                <Upload className="mr-2 h-4 w-4" />
+                Import
+              </Button>
+              <input
+                id="import-file"
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={handleImport}
+              />
+              <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+                <DialogTrigger asChild>
+                  <Button className="w-full sm:w-auto">
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Tournament
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent className="mx-4 max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Create New Tournament</DialogTitle>
+                    <DialogDescription>
+                      Enter a name for your tournament. You can configure teams and settings later.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="name">Tournament Name</Label>
+                      <Input
+                        id="name"
+                        value={newTournamentName}
+                        onChange={(e) => setNewTournamentName(e.target.value)}
+                        placeholder="Summer League 2025"
+                        onKeyDown={(e) => e.key === 'Enter' && createTournament()}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit" onClick={createTournament} className="w-full">
+                      Create Tournament
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </div>
         
@@ -321,7 +323,7 @@ export default function TournamentList() {
             {tournaments.filter(t => t.section === 'mine').length > 0 && (
               <div>
                 <h2 className="text-xl font-semibold mb-4">My Tournaments</h2>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {tournaments.filter(t => t.section === 'mine').slice(0, 5).map((tournament) => (
                     <TournamentCard 
                       key={tournament.id} 
@@ -343,7 +345,7 @@ export default function TournamentList() {
             {tournaments.filter(t => t.section === 'public').length > 0 && (
               <div>
                 <h2 className="text-xl font-semibold mb-4">Public Tournaments</h2>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {tournaments.filter(t => t.section === 'public').slice(0, 5).map((tournament) => (
                     <TournamentCard 
                       key={tournament.id} 
@@ -379,11 +381,13 @@ export default function TournamentList() {
       </div>
       
       {/* Footer */}
-      <footer className="mt-auto border-t" style={{ marginTop: 'auto', borderTop: '1px solid #334155', backgroundColor: '#1e293b' }}>
-        <div className="mx-auto max-w-6xl px-4 py-6" style={{ maxWidth: '72rem', margin: '0 auto', padding: '1.5rem 1rem' }}>
-          <div className="text-sm text-muted-foreground text-center" style={{ fontSize: '0.875rem', color: '#94a3b8' }}>
+      <footer className="mt-auto border-t bg-card">
+        <div className="mx-auto max-w-6xl px-3 sm:px-4 py-4 sm:py-6">
+          <div className="text-xs sm:text-sm text-muted-foreground text-center space-y-1">
             <p>© 2025 Visarc Ltd</p>
-            <p className="text-xs mt-1" style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}>Built by AI under the supervision of humans and a Franc</p>
+            <p className="text-xs">
+              Built by AI under the supervision of humans and a Franc
+            </p>
           </div>
         </div>
       </footer>
