@@ -141,7 +141,7 @@ export default function GameTypeManager({ gameTypes = [], onChange, teams = [] }
               <Label htmlFor="game-name">Game Name</Label>
               <Input
                 id="game-name"
-                placeholder="e.g., Pool, Cornhole"
+                placeholder="e.g., Pool, Darts"
                 value={newGameType.name}
                 onChange={(e) => setNewGameType({ ...newGameType, name: e.target.value })}
               />
