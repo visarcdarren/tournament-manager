@@ -41,7 +41,7 @@
 ### Step 1: Create a Tournament
 
 1. Click "New Tournament" on the home screen
-2. Enter a tournament name (e.g., "Summer League 2024")
+2. Enter a tournament name (e.g., "Summer League 2025")
 3. Click "Create Tournament"
 
 ### Step 2: Configure Settings

@@ -241,7 +241,7 @@ export default function TournamentList() {
                       id="name"
                       value={newTournamentName}
                       onChange={(e) => setNewTournamentName(e.target.value)}
-                      placeholder="Summer League 2024"
+                      placeholder="Summer League 2025"
                       onKeyDown={(e) => e.key === 'Enter' && createTournament()}
                     />
                   </div>
