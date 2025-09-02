@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Shield, Eye, Download, Trash2, KeyRound, Calendar } from 'lucide-react'
+import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Eye, Download, Trash2, Calendar, Globe, Lock, Share } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -20,9 +20,6 @@ import TeamManagement from './TeamManagement'
 import LiveTournament from './LiveTournament'
 import Leaderboard from './Leaderboard'
 import CompletionScreen from './CompletionScreen'
-import DevicePermissions from './DevicePermissions'
-import RoleRequestDialog from './RoleRequestDialog'
-import SuperuserLoginDialog from './SuperuserLoginDialog'
 import ScheduleViewer from './ScheduleViewer'
 import { getCurrentRound, isTournamentComplete } from '@/utils/tournament'
 
@@ -33,10 +30,9 @@ export default function TournamentView({ tournamentId }) {
   const tournamentStore = useTournamentStore()
   const [activeTab, setActiveTab] = useState('setup')
   const manualTabChangeRef = useRef(false) // Use ref instead of state for immediate updates
-  const [showRoleRequest, setShowRoleRequest] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [showSuperuserLogin, setShowSuperuserLogin] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showShareDialog, setShowShareDialog] = useState(false)
   
   const { tournament, userRole, isLoading } = tournamentStore
   
@@ -89,8 +85,7 @@ export default function TournamentView({ tournamentId }) {
       tournamentStore.setTournament(data)
       tournamentStore.setUserRole(data.userRole || 'VIEWER')
       
-      // Don't store role in device store - it's tournament-specific
-      // Role comes from server and is stored in tournament store only
+      // Role is now either 'CREATOR' or 'VIEWER'
     } catch (error) {
       toast({
         title: 'Error',
@@ -123,34 +118,6 @@ export default function TournamentView({ tournamentId }) {
           status: 'running',
           expiresAt: data.expiresAt 
         })
-      },
-      'role-request': (data) => {
-        if (userRole === 'ADMIN') {
-          toast({
-            title: 'New Role Request',
-            description: `${data.deviceName} requests scorer access`
-          })
-          loadTournament() // Reload to get pending requests
-        }
-      },
-      'role-granted': (data) => {
-        if (data.deviceId === useDeviceStore.getState().deviceId) {
-          toast({
-            title: 'Access Granted',
-            description: 'You now have scorer permissions'
-          })
-          loadTournament()
-        }
-      },
-      'role-revoked': (data) => {
-        if (data.deviceId === useDeviceStore.getState().deviceId) {
-          toast({
-            title: 'Access Revoked',
-            description: 'Your scorer permissions have been removed',
-            variant: 'destructive'
-          })
-          loadTournament()
-        }
       },
       'tournament-deleted': (data) => {
         toast({
@@ -222,10 +189,66 @@ export default function TournamentView({ tournamentId }) {
     return null
   }
   
-  const isAdmin = userRole === 'ADMIN'
-  const isScorer = userRole === 'SCORER' || isAdmin
+  const isCreator = userRole === 'CREATOR'
   const currentRound = getCurrentRound(tournament)
   const isComplete = isTournamentComplete(tournament)
+  
+  const togglePublicStatus = async () => {
+    const wasPublic = tournament.isPublic
+    
+    try {
+      await api.toggleTournamentPublic(tournamentId)
+      
+      // Show share dialog if tournament was just made public
+      if (!wasPublic) {
+        setShowShareDialog(true)
+      }
+      
+      toast({
+        title: 'Success',
+        description: `Tournament is now ${wasPublic ? 'private' : 'public'}`
+      })
+      loadTournament() // Reload to get updated status
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update tournament visibility',
+        variant: 'destructive'
+      })
+    }
+  }
+  
+  const shareUrl = `${window.location.origin}/tournament/${tournamentId}`
+  
+  const handleShare = async () => {
+    const shareData = {
+      title: `${tournament.name} - Tournament`,
+      text: `Follow the ${tournament.name} tournament progress`,
+      url: shareUrl
+    }
+    
+    try {
+      // Use native sharing if available (mobile)
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        await navigator.share(shareData)
+        return
+      }
+    } catch (error) {
+      console.log('Native sharing failed, falling back to clipboard')
+    }
+    
+    // Fallback: copy to clipboard
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      toast({
+        title: 'Link Copied!',
+        description: 'Tournament link copied to clipboard'
+      })
+    } catch (error) {
+      // Ultimate fallback: show the dialog
+      setShowShareDialog(true)
+    }
+  }
   
   return (
     <div className="min-h-screen bg-background" style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: '#f8fafc' }}>
@@ -238,17 +261,13 @@ export default function TournamentView({ tournamentId }) {
                 <ArrowLeft className="h-5 w-5" />
               </Button>
               <div>
-                <h1 className="text-2xl font-bold">{tournament.name}</h1>
+                <h1 className="text-2xl font-bold">
+                  {tournament.name}
+                </h1>
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">
-                    {userRole === 'ADMIN' ? (
-                      <Shield className="h-3 w-3" />
-                    ) : userRole === 'SCORER' ? (
-                      <Users className="h-3 w-3" />
-                    ) : (
-                      <Eye className="h-3 w-3" />
-                    )}
-                    {userRole}
+                    <Eye className="h-3 w-3" />
+                    {isCreator ? 'Creator' : 'Viewer'}
                   </span>
                   {tournament.currentState.status === 'active' && (
                     <span className="flex items-center gap-1">
@@ -260,24 +279,27 @@ export default function TournamentView({ tournamentId }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {userRole === 'VIEWER' && !isComplete && (
+              {isCreator && (
                 <>
-                  <Button variant="outline" onClick={() => setShowRoleRequest(true)}>
-                    Request Scorer Access
+                  {tournament.isPublic && (
+                    <Button variant="outline" onClick={handleShare} className="text-blue-600 border-blue-200 hover:bg-blue-50">
+                      <Share className="mr-2 h-4 w-4" />
+                      Share
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={togglePublicStatus}>
+                    {tournament.isPublic ? (
+                      <>
+                        <Lock className="mr-2 h-4 w-4" />
+                        Make Private
+                      </>
+                    ) : (
+                      <>
+                        <Globe className="mr-2 h-4 w-4" />
+                        Make Public
+                      </>
+                    )}
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => setShowSuperuserLogin(true)}
-                    title="Superuser Login"
-                    className="h-9 w-9"
-                  >
-                    <KeyRound className="h-5 w-5" />
-                  </Button>
-                </>
-              )}
-              {isAdmin && (
-                <>
                   <Button variant="outline" size="icon" onClick={exportTournament} className="h-9 w-9">
                     <Download className="h-5 w-5" />
                   </Button>
@@ -305,12 +327,12 @@ export default function TournamentView({ tournamentId }) {
             manualTabChangeRef.current = true
             setActiveTab(value)
           }}>
-            <TabsList className="grid w-full grid-cols-6">
-              <TabsTrigger value="setup" disabled={!isAdmin}>
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="setup" disabled={!isCreator}>
                 <Settings className="mr-2 h-4 w-4" />
                 Setup
               </TabsTrigger>
-              <TabsTrigger value="teams" disabled={!isAdmin}>
+              <TabsTrigger value="teams" disabled={!isCreator}>
                 <Users className="mr-2 h-4 w-4" />
                 Teams
               </TabsTrigger>
@@ -326,18 +348,12 @@ export default function TournamentView({ tournamentId }) {
                 <Trophy className="mr-2 h-4 w-4" />
                 Leaderboard
               </TabsTrigger>
-              {isAdmin && (
-                <TabsTrigger value="devices">
-                  <Shield className="mr-2 h-4 w-4" />
-                  Devices
-                </TabsTrigger>
-              )}
             </TabsList>
             
             <TabsContent value="setup">
               <TournamentSetup 
                 tournament={tournament} 
-                isAdmin={isAdmin} 
+                isAdmin={isCreator} 
                 onNavigateToTeams={() => {
                   manualTabChangeRef.current = true
                   setActiveTab('teams')
@@ -346,7 +362,7 @@ export default function TournamentView({ tournamentId }) {
             </TabsContent>
             
             <TabsContent value="teams">
-              <TeamManagement tournament={tournament} isAdmin={isAdmin} />
+              <TeamManagement tournament={tournament} isAdmin={isCreator} />
             </TabsContent>
             
             <TabsContent value="schedule">
@@ -357,38 +373,17 @@ export default function TournamentView({ tournamentId }) {
               <LiveTournament 
                 tournament={tournament} 
                 currentRound={currentRound}
-                isAdmin={isAdmin}
-                isScorer={isScorer}
+                isAdmin={isCreator}
+                isScorer={isCreator}
               />
             </TabsContent>
             
             <TabsContent value="leaderboard">
               <Leaderboard tournament={tournament} />
             </TabsContent>
-            
-            {isAdmin && (
-              <TabsContent value="devices">
-                <DevicePermissions tournament={tournament} />
-              </TabsContent>
-            )}
           </Tabs>
         )}
       </div>
-      
-      {/* Role Request Dialog */}
-      <RoleRequestDialog 
-        open={showRoleRequest} 
-        onOpenChange={setShowRoleRequest}
-        tournamentId={tournamentId}
-      />
-      
-      {/* Superuser Login Dialog */}
-      <SuperuserLoginDialog
-        open={showSuperuserLogin}
-        onOpenChange={setShowSuperuserLogin}
-        tournamentId={tournamentId}
-        onSuccess={loadTournament}
-      />
       
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -417,6 +412,89 @@ export default function TournamentView({ tournamentId }) {
               disabled={isDeleting}
             >
               {isDeleting ? 'Deleting...' : 'Delete Tournament'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Share Dialog */}
+      <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share className="h-5 w-5" />
+              Share Tournament
+            </DialogTitle>
+            <DialogDescription>
+              Your tournament is now public! Share this link so others can follow the progress.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Tournament Link:</label>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  value={shareUrl}
+                  readOnly
+                  className="flex-1 px-3 py-2 text-sm border rounded-md bg-gray-50 text-gray-700"
+                  onClick={(e) => e.target.select()}
+                />
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(shareUrl)
+                      toast({
+                        title: 'Copied!',
+                        description: 'Link copied to clipboard'
+                      })
+                    } catch (error) {
+                      toast({
+                        title: 'Error',
+                        description: 'Could not copy to clipboard',
+                        variant: 'destructive'
+                      })
+                    }
+                  }}
+                >
+                  Copy
+                </Button>
+              </div>
+            </div>
+            
+            <div className="text-sm text-muted-foreground">
+              <p>• Others can view tournament progress in real-time</p>
+              <p>• They can see schedules, scores, and leaderboards</p>
+              <p>• Only you can edit or score games</p>
+            </div>
+            
+            {/* Native share button for mobile */}
+            {navigator.share && (
+              <Button 
+                onClick={async () => {
+                  try {
+                    await navigator.share({
+                      title: `${tournament.name} - Tournament`,
+                      text: `Follow the ${tournament.name} tournament progress`,
+                      url: shareUrl
+                    })
+                    setShowShareDialog(false)
+                  } catch (error) {
+                    console.log('User cancelled sharing')
+                  }
+                }}
+                className="w-full"
+              >
+                <Share className="mr-2 h-4 w-4" />
+                Share via Apps
+              </Button>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowShareDialog(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

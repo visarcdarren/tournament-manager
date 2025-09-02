@@ -55,6 +55,38 @@ export default function ScheduleViewer({ tournament }) {
     return games
   }
   
+  // Get player's complete schedule (games + rest) in round order
+  const getPlayerSchedule = (playerId) => {
+    const schedule = []
+    tournament.schedule.forEach((round, roundIndex) => {
+      const roundNumber = roundIndex + 1
+      
+      // Check if player has a game this round
+      const gameInRound = round.games.find(game => 
+        game.player1?.playerId === playerId ||
+        game.player2?.playerId === playerId ||
+        game.team1Players?.some(p => p.playerId === playerId) ||
+        game.team2Players?.some(p => p.playerId === playerId)
+      )
+      
+      if (gameInRound) {
+        // Player has a game this round
+        schedule.push({
+          ...gameInRound,
+          round: roundNumber,
+          type: 'game'
+        })
+      } else {
+        // Player is resting this round
+        schedule.push({
+          round: roundNumber,
+          type: 'rest'
+        })
+      }
+    })
+    return schedule
+  }
+  
   // Get all games at a specific station
   const getStationGames = (stationId) => {
     const games = []
@@ -273,65 +305,69 @@ export default function ScheduleViewer({ tournament }) {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {getPlayerGames(selectedPlayer.id).map(game => (
-                    <div key={game.id} className="rounded-lg border p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-semibold text-sm">Round {game.round}</span>
-                        <Badge variant="secondary" className="text-xs">
-                          {game.stationName || game.station}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {game.team1Players || game.team2Players ? (
-                          <div>
-                            Partners with:{' '}
-                            {game.team1Players?.find(p => p.playerId === selectedPlayer.id)
-                              ? game.team1Players.filter(p => p.playerId !== selectedPlayer.id).map(p => p.playerName).join(', ')
-                              : game.team2Players.filter(p => p.playerId !== selectedPlayer.id).map(p => p.playerName).join(', ')
-                            }
-                          </div>
-                        ) : null}
-                        <div>
-                          vs{' '}
-                          {game.team1Players ? (
-                            game.team1Players.some(p => p.playerId === selectedPlayer.id)
-                              ? game.team2Players.map(p => p.playerName).join(' & ')
-                              : game.team1Players.map(p => p.playerName).join(' & ')
-                          ) : (
-                            game.player1.playerId === selectedPlayer.id
-                              ? game.player2.playerName
-                              : game.player1.playerName
-                          )}
-                        </div>
-                      </div>
-                      {game.status === 'completed' && (
-                        <Badge variant="outline" className="mt-2 text-xs">
-                          Completed
-                        </Badge>
-                      )}
-                    </div>
-                  ))}
-                  
-                  {/* Rest Rounds */}
-                  {tournament.schedule.map((round, index) => {
-                    const hasGame = round.games.some(game => 
-                      game.player1?.playerId === selectedPlayer.id ||
-                      game.player2?.playerId === selectedPlayer.id ||
-                      game.team1Players?.some(p => p.playerId === selectedPlayer.id) ||
-                      game.team2Players?.some(p => p.playerId === selectedPlayer.id)
-                    )
-                    
-                    if (!hasGame) {
+                  {getPlayerSchedule(selectedPlayer.id).map((item, index) => {
+                    if (item.type === 'rest') {
                       return (
-                        <div key={`rest-${index}`} className="rounded-lg border border-dashed p-3 opacity-60">
+                        <div key={`round-${item.round}`} className="rounded-lg border border-dashed p-3 opacity-60">
                           <div className="text-sm">
-                            <span className="font-semibold">Round {index + 1}</span>
+                            <span className="font-semibold">Round {item.round}</span>
                             <span className="text-muted-foreground ml-2">• Rest</span>
                           </div>
                         </div>
                       )
+                    } else {
+                      // This is a game
+                      const game = item
+                      return (
+                        <div key={game.id} className="rounded-lg border p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-semibold text-sm">Round {game.round}</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {game.stationName || game.station}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {/* Only show partners section for team games where player has actual partners */}
+                            {(game.team1Players || game.team2Players) && (
+                              (() => {
+                                // Determine which team the selected player is on and get their partners
+                                const isOnTeam1 = game.team1Players?.some(p => p.playerId === selectedPlayer.id)
+                                const playerTeam = isOnTeam1 ? game.team1Players : game.team2Players
+                                const partners = playerTeam?.filter(p => p.playerId !== selectedPlayer.id) || []
+                                
+                                // Only show if there are actual partners (team game with more than 1 player per team)
+                                if (partners.length > 0) {
+                                  return (
+                                    <div>
+                                      Partners with:{' '}
+                                      {partners.map(p => p.playerName).join(', ')}
+                                    </div>
+                                  )
+                                }
+                                return null
+                              })()
+                            )}
+                            <div>
+                              vs{' '}
+                              {game.team1Players ? (
+                                game.team1Players.some(p => p.playerId === selectedPlayer.id)
+                                  ? game.team2Players.map(p => p.playerName).join(' & ')
+                                  : game.team1Players.map(p => p.playerName).join(' & ')
+                              ) : (
+                                game.player1.playerId === selectedPlayer.id
+                                  ? game.player2.playerName
+                                  : game.player1.playerName
+                              )}
+                            </div>
+                          </div>
+                          {game.status === 'completed' && (
+                            <Badge variant="outline" className="mt-2 text-xs">
+                              Completed
+                            </Badge>
+                          )}
+                        </div>
+                      )
                     }
-                    return null
                   })}
                 </div>
               </CardContent>

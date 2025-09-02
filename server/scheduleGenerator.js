@@ -3,16 +3,21 @@ import { v4 as uuidv4 } from 'uuid';
 
 // Migrate old tournament format to new format
 export function migrateTournamentToV2(tournament) {
-  if (tournament.version === 2) return tournament;
+  if (tournament.version === 2 && tournament.creatorDeviceId) return tournament;
   
-  return {
+  // Create migrated tournament object
+  const migrated = {
     ...tournament,
     version: 2,
+    // Migrate old admin device ID to new creator device ID
+    creatorDeviceId: tournament.adminDeviceId || tournament.creatorDeviceId,
+    creatorName: tournament.devices?.[0]?.name || 'Tournament Creator',
+    isPublic: tournament.isPublic || false,
     settings: {
       ...tournament.settings,
-      // Convert old equipment to game types
-      gameTypes: [
-        ...(tournament.settings.equipment.shuffleboards > 0 ? [{
+      // Convert old equipment to game types if needed
+      gameTypes: tournament.settings.gameTypes || [
+        ...(tournament.settings.equipment?.shuffleboards > 0 ? [{
           id: 'shuffleboard',
           name: 'Shuffleboard',
           playersPerTeam: 1,
@@ -23,7 +28,7 @@ export function migrateTournamentToV2(tournament) {
               name: `Shuffleboard ${i + 1}`
             }))
         }] : []),
-        ...(tournament.settings.equipment.dartboards > 0 ? [{
+        ...(tournament.settings.equipment?.dartboards > 0 ? [{
           id: 'darts',
           name: 'Darts',
           playersPerTeam: 1,
@@ -35,14 +40,22 @@ export function migrateTournamentToV2(tournament) {
             }))
         }] : [])
       ],
-      timer: {
-        enabled: true,
+      timer: tournament.settings.timer || {
+        enabled: false,
         duration: 30
-      },
-      // Remove old equipment field
-      equipment: undefined
+      }
     }
   };
+  
+  // Remove old fields
+  delete migrated.adminDeviceId;
+  delete migrated.devices;
+  delete migrated.pendingRequests;
+  if (migrated.settings.equipment) {
+    delete migrated.settings.equipment;
+  }
+  
+  return migrated;
 }
 
 // Validate tournament can be scheduled

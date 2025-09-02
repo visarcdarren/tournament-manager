@@ -78,25 +78,19 @@ class TournamentAPI {
     })
   }
   
-  // Role management
-  async requestRole(tournamentId, data) {
-    return this.fetch(`/tournament/${tournamentId}/request-role`, {
-      method: 'POST',
-      body: JSON.stringify(data)
+  async previewSchedule(id) {
+    return this.fetch(`/tournament/${id}/preview-schedule`, {
+      method: 'POST'
     })
   }
   
-  async grantRole(tournamentId, data) {
-    return this.fetch(`/tournament/${tournamentId}/grant-role`, {
-      method: 'POST',
-      body: JSON.stringify(data)
-    })
-  }
+  // Removed: Role management (no longer needed)
+  // The system is now simplified to creator-only control
   
-  async revokeRole(tournamentId, deviceId) {
-    return this.fetch(`/tournament/${tournamentId}/revoke-role`, {
-      method: 'POST',
-      body: JSON.stringify({ deviceId })
+  // Public/Private toggle
+  async toggleTournamentPublic(tournamentId) {
+    return this.fetch(`/tournament/${tournamentId}/toggle-public`, {
+      method: 'POST'
     })
   }
   
