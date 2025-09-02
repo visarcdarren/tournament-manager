@@ -83,9 +83,9 @@ export default function ScheduleViewer({ tournament }) {
     }
   }
   
-  const handlePrint = () => {
-    window.print()
-  }
+  // const handlePrint = () => {
+  //   window.print()
+  // }
   
   // Get all players for player view
   const allPlayers = tournament.teams.flatMap(team => 
@@ -184,12 +184,10 @@ export default function ScheduleViewer({ tournament }) {
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl sm:text-2xl font-bold">Tournament Schedule</h2>
-        {/* Temporarily disabled - print layout needs improvement
-        <Button onClick={handlePrint} variant="outline" size="sm" className="w-full sm:w-auto">
+        {/* <Button onClick={handlePrint} variant="outline" size="sm" className="w-full sm:w-auto">
           <Printer className="mr-2 h-4 w-4" />
           Print Schedule
-        </Button>
-        */}
+        </Button> */}
       </div>
       
       <Tabs defaultValue="rounds" className="space-y-4">
@@ -623,19 +621,297 @@ export default function ScheduleViewer({ tournament }) {
         </TabsContent>
       </Tabs>
       
+      {/* Print-Only Content - Hidden on screen, formatted for paper */}
+      <div className="print-only">
+        <div className="print-header">
+          <h1>{tournament.name}</h1>
+          <h2>Tournament Schedule</h2>
+          <div className="print-info">
+            <div>Teams: {tournament.teams.length}</div>
+            <div>Rounds: {tournament.schedule.length}</div>
+            <div>Generated: {new Date().toLocaleDateString()}</div>
+          </div>
+        </div>
+        
+        {/* Print All Rounds */}
+        {tournament.schedule.map((round, roundIndex) => {
+          const completedGames = round.games.filter(g => g.result).length
+          const totalGames = round.games.length
+          
+          return (
+            <div key={roundIndex} className="print-round">
+              <div className="print-round-header">
+                <h3>Round {round.round} of {tournament.schedule.length}</h3>
+                <div className="print-round-info">
+                  {completedGames === totalGames && totalGames > 0 
+                    ? `${totalGames} games completed`
+                    : `${totalGames} games scheduled`
+                  }
+                  {tournament.settings.timer?.enabled && (
+                    <span> • {tournament.settings.timer.duration} minute rounds</span>
+                  )}
+                </div>
+              </div>
+              
+              <div className="print-games">
+                {round.games.map((game, gameIndex) => {
+                  const result = formatGameResult(game)
+                  const isMultiPlayer = game.team1Players && game.team2Players
+                  
+                  const team1Display = isMultiPlayer 
+                    ? game.team1Players.map(p => p.playerName).join(' & ')
+                    : game.player1?.playerName || ''
+                    
+                  const team2Display = isMultiPlayer
+                    ? game.team2Players.map(p => p.playerName).join(' & ')
+                    : game.player2?.playerName || ''
+                    
+                  const team1Name = isMultiPlayer
+                    ? game.team1Players[0]?.teamName || ''
+                    : game.player1?.teamName || ''
+                    
+                  const team2Name = isMultiPlayer
+                    ? game.team2Players[0]?.teamName || ''
+                    : game.player2?.teamName || ''
+                  
+                  return (
+                    <div key={game.id} className="print-game">
+                      <div className="print-game-header">
+                        <span className="print-station">{game.stationName || game.station}</span>
+                        {game.gameTypeName && (
+                          <span className="print-game-type">({game.gameTypeName})</span>
+                        )}
+                        {result && (
+                          <span className={`print-result ${result.text === 'Draw' ? 'draw' : 'winner'}`}>
+                            {result.text === 'Draw' ? 'DRAW' : `WINNER: ${result.text}`}
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="print-matchup">
+                        <div className="print-team">
+                          <div className="print-player-name">{team1Display}</div>
+                          <div className="print-team-name">({team1Name})</div>
+                        </div>
+                        <div className="print-vs">VS</div>
+                        <div className="print-team">
+                          <div className="print-player-name">{team2Display}</div>
+                          <div className="print-team-name">({team2Name})</div>
+                        </div>
+                      </div>
+                      
+                      {!result && (
+                        <div className="print-score-box">
+                          <span>Result: _______________</span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      
       {/* Print Styles */}
       <style jsx>{`
+        /* Hide print-only content on screen */
+        .print-only {
+          display: none;
+        }
+        
         @media print {
-          .no-print {
+          /* Hide all screen UI elements */
+          .space-y-4.sm\:space-y-6 > *:not(.print-only) {
             display: none !important;
           }
           
-          body {
-            font-size: 12px;
+          /* Show and style print-only content */
+          .print-only {
+            display: block !important;
+            font-family: 'Times New Roman', Times, serif;
+            color: black;
+            background: white;
+            font-size: 12pt;
+            line-height: 1.4;
           }
           
-          .print-break {
-            page-break-after: always;
+          /* Print Header */
+          .print-header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid black;
+            padding-bottom: 15px;
+          }
+          
+          .print-header h1 {
+            font-size: 24pt;
+            font-weight: bold;
+            margin: 0 0 10px 0;
+            text-transform: uppercase;
+          }
+          
+          .print-header h2 {
+            font-size: 18pt;
+            font-weight: normal;
+            margin: 0 0 15px 0;
+            color: #666;
+          }
+          
+          .print-info {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            font-size: 11pt;
+            color: #666;
+          }
+          
+          /* Round Styling */
+          .print-round {
+            page-break-before: always;
+            margin-bottom: 40px;
+          }
+          
+          .print-round:first-child {
+            page-break-before: auto;
+          }
+          
+          .print-round-header {
+            margin-bottom: 25px;
+            border-bottom: 1px solid #666;
+            padding-bottom: 10px;
+          }
+          
+          .print-round-header h3 {
+            font-size: 18pt;
+            font-weight: bold;
+            margin: 0 0 5px 0;
+            color: black;
+          }
+          
+          .print-round-info {
+            font-size: 11pt;
+            color: #666;
+          }
+          
+          /* Games Grid */
+          .print-games {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+          }
+          
+          /* Individual Game */
+          .print-game {
+            border: 2px solid black;
+            padding: 15px;
+            background: white;
+            break-inside: avoid;
+            margin-bottom: 10px;
+          }
+          
+          .print-game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #ccc;
+          }
+          
+          .print-station {
+            font-weight: bold;
+            font-size: 13pt;
+          }
+          
+          .print-game-type {
+            font-size: 10pt;
+            color: #666;
+            margin-left: 8px;
+          }
+          
+          .print-result {
+            font-weight: bold;
+            font-size: 10pt;
+            padding: 2px 8px;
+            border-radius: 3px;
+          }
+          
+          .print-result.winner {
+            background: #e8f5e8;
+            color: #2d5a2d;
+            border: 1px solid #4a7c4a;
+          }
+          
+          .print-result.draw {
+            background: #e8f0ff;
+            color: #2d4a5a;
+            border: 1px solid #4a6c7c;
+          }
+          
+          /* Matchup Display */
+          .print-matchup {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 15px 0;
+          }
+          
+          .print-team {
+            flex: 1;
+            text-align: center;
+          }
+          
+          .print-player-name {
+            font-weight: bold;
+            font-size: 13pt;
+            margin-bottom: 3px;
+          }
+          
+          .print-team-name {
+            font-size: 10pt;
+            color: #666;
+          }
+          
+          .print-vs {
+            font-weight: bold;
+            font-size: 14pt;
+            margin: 0 15px;
+            color: #666;
+          }
+          
+          /* Score Box */
+          .print-score-box {
+            margin-top: 15px;
+            padding: 10px;
+            border: 1px dashed #666;
+            background: #f9f9f9;
+            text-align: center;
+            font-size: 11pt;
+          }
+          
+          /* Page Setup */
+          @page {
+            margin: 0.75in;
+            size: letter;
+          }
+          
+          body {
+            margin: 0;
+            padding: 0;
+            background: white;
+          }
+          
+          /* Ensure clean breaks */
+          .print-round:nth-child(even) .print-games {
+            grid-template-columns: 1fr 1fr;
+          }
+          
+          /* Single column for rounds with many games */
+          .print-round:has(.print-games .print-game:nth-child(5)) .print-games {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>
