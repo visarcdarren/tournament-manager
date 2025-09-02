@@ -83,30 +83,19 @@ function TournamentCard({ tournament, navigate, showOwnerControls }) {
           <CardDescription>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm">
               <span className="flex items-center gap-1">
-                <Calendar className="h-3 w-3 flex-shrink-0" />
+                Created <Calendar className="h-3 w-3 flex-shrink-0" /> : 
+                
                 <span className="truncate">{new Date(tournament.created).toLocaleDateString()}</span>
               </span>
               <span className="flex items-center gap-1">
                 <Users className="h-3 w-3 flex-shrink-0" />
                 <span className="truncate">{tournament.status}</span>
               </span>
-              {tournament.isOwner && (
-                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded flex-shrink-0">
-                  Owner
-                </span>
-              )}
+              
             </div>
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-0">
-          <div className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-            tournament.status === 'completed' ? 'bg-green-100 text-green-800' :
-            tournament.status === 'active' ? 'bg-blue-100 text-blue-800' :
-            'bg-gray-100 text-gray-800'
-          }`}>
-            {tournament.status}
-          </div>
-        </CardContent>
+        
       </div>
     </Card>
   )

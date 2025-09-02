@@ -565,24 +565,113 @@ app.get('/api/tournament/:id/export', authenticate, async (req, res) => {
 
 // Import tournament
 app.post('/api/tournament/import', authenticate, async (req, res) => {
-  const tournamentData = req.body;
-  const newId = uuidv4();
-  
-  const tournament = {
-    ...tournamentData,
-    id: newId,
-    adminDeviceId: req.deviceId,
-    devices: [{
-      id: req.deviceId,
-      name: req.headers['x-device-name'] || 'Admin Device',
-      role: 'ADMIN'
-    }],
-    pendingRequests: [],
-    created: new Date().toISOString()
-  };
-  
-  await saveTournament(tournament.id, tournament);
-  res.json({ id: tournament.id });
+  try {
+    const tournamentData = req.body;
+    
+    // Validate required tournament data structure
+    if (!tournamentData || typeof tournamentData !== 'object') {
+      return res.status(400).json({ error: 'Invalid tournament data format' });
+    }
+    
+    // Validate required fields
+    const requiredFields = ['name', 'settings', 'teams'];
+    for (const field of requiredFields) {
+      if (!tournamentData[field]) {
+        return res.status(400).json({ 
+          error: `Missing required field: ${field}` 
+        });
+      }
+    }
+    
+    // Generate new unique ID for the imported tournament
+    const newId = uuidv4();
+    
+    // Get current device info
+    const deviceName = req.headers['x-device-name'] || 'Admin Device';
+    
+    // Create the imported tournament with new ownership
+    const tournament = {
+      ...tournamentData,
+      // Override critical fields to ensure proper ownership and uniqueness
+      id: newId,
+      version: 2, // Ensure current version
+      creatorDeviceId: req.deviceId, // Set importing user as creator/owner
+      creatorName: deviceName,
+      isPublic: false, // Always import as private initially
+      created: new Date().toISOString(),
+      // Preserve original creation date as imported metadata if it exists
+      originalCreated: tournamentData.created || null,
+      importedAt: new Date().toISOString(),
+      importedBy: {
+        deviceId: req.deviceId,
+        deviceName: deviceName
+      }
+    };
+    
+    // Reset tournament state to setup if it was active
+    if (tournament.currentState) {
+      tournament.currentState = {
+        ...tournament.currentState,
+        status: 'setup' // Always import in setup state
+      };
+    }
+    
+    // Clear any existing game results to avoid confusion
+    if (tournament.schedule) {
+      tournament.schedule = tournament.schedule.map(round => ({
+        ...round,
+        games: round.games.map(game => ({
+          ...game,
+          result: null,
+          status: 'pending'
+        }))
+      }));
+    }
+    
+    // Save the tournament
+    await saveTournament(tournament.id, tournament);
+    
+    // Add audit log entry for the import
+    await addAuditEntry(tournament.id, {
+      deviceId: req.deviceId,
+      deviceName: deviceName,
+      action: 'IMPORT_TOURNAMENT',
+      details: {
+        originalName: tournamentData.name,
+        originalId: tournamentData.id || null,
+        originalCreated: tournamentData.created || null,
+        teamsCount: tournament.teams?.length || 0,
+        scheduleGenerated: tournament.schedule?.length > 0
+      }
+    });
+    
+    res.json({ 
+      id: tournament.id,
+      name: tournament.name 
+    });
+    
+  } catch (error) {
+    console.error('Tournament import error:', error);
+    
+    // Handle JSON parsing errors specifically
+    if (error instanceof SyntaxError) {
+      return res.status(400).json({ 
+        error: 'Invalid JSON format in tournament file' 
+      });
+    }
+    
+    // Handle file system errors
+    if (error.code === 'EACCES' || error.code === 'ENOSPC') {
+      return res.status(500).json({ 
+        error: 'Server storage error. Please try again.' 
+      });
+    }
+    
+    // Generic error fallback
+    res.status(500).json({ 
+      error: 'Failed to import tournament. Please check the file format and try again.' 
+    });
+  }
 });
 
 // Removed: Complex superuser system - no longer needed
