@@ -393,7 +393,8 @@ app.post('/api/tournament/:id/score', authenticateCreator, async (req, res) => {
     if (game) {
       const previousResult = game.result;
       game.result = result;
-      game.status = 'completed';
+      // Don't automatically mark as completed - keep status as 'pending' to allow re-scoring
+      // game.status = 'completed'; // Removed this line
       gameFound = true;
       
       // Build player lists for logging
