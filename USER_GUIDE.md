@@ -41,7 +41,7 @@
 ### Step 1: Create a Tournament
 
 1. Click "New Tournament" on the home screen
-2. Enter a tournament name (e.g., "Summer League 2024")
+2. Enter a tournament name (e.g., "Summer League 2025")
 3. Click "Create Tournament"
 
 ### Step 2: Configure Settings
@@ -57,7 +57,7 @@ In the **Setup** tab:
 
 **Game Types (NEW!):**
 1. Click "Add Game Type"
-2. Enter game name (e.g., "Pool", "Cornhole", "Shuffleboard")
+2. Enter game name (e.g., "Pool", "Darts", "Shuffleboard")
 3. Set players per team:
    - 1 = 1v1 games
    - 2 = 2v2 games

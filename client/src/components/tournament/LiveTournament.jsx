@@ -4,6 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import api from '@/utils/api'
 import useTournamentStore from '@/stores/tournamentStore'
@@ -17,10 +25,76 @@ export default function LiveTournament({ tournament, currentRound, isAdmin, isSc
   const [timerDuration, setTimerDuration] = useState(tournament.settings.timer?.duration || 30)
   const [showSwapDialog, setShowSwapDialog] = useState(false)
   const [swapContext, setSwapContext] = useState(null)
+  const [showRoundCompleteDialog, setShowRoundCompleteDialog] = useState(false)
+  const [userDeclinedCompletion, setUserDeclinedCompletion] = useState(false)
   
   const round = tournament.schedule?.find(r => r.round === currentRound)
   const hasSchedule = tournament.schedule && tournament.schedule.length > 0
   const timerEnabled = tournament.settings.timer?.enabled
+  
+  // Check if all games in current round have results
+  const areAllGamesScored = () => {
+    if (!round) return false
+    return round.games.every(game => game.result)
+  }
+  
+  // Handle game scoring completion
+  const handleGameScored = () => {
+    // Check if all games are now scored
+    if (areAllGamesScored() && (!userDeclinedCompletion || userDeclinedCompletion)) {
+      // Reset declined flag and show dialog
+      setUserDeclinedCompletion(false)
+      setShowRoundCompleteDialog(true)
+    }
+  }
+  
+  // Complete the round and move to next
+  const completeRound = async () => {
+    try {
+      const updatedTournament = { ...tournament }
+      
+      // Mark round as complete and advance to next round
+      const roundIndex = updatedTournament.schedule.findIndex(r => r.round === currentRound)
+      if (roundIndex !== -1) {
+        updatedTournament.schedule[roundIndex].status = 'completed'
+      }
+      
+      // Advance to next round if there is one
+      if (currentRound < tournament.settings.rounds) {
+        updatedTournament.currentState.currentRound = currentRound + 1
+      } else {
+        updatedTournament.currentState.status = 'completed'
+      }
+      
+      await api.updateTournament(tournament.id, updatedTournament)
+      tournamentStore.setTournament(updatedTournament)
+      
+      toast({
+        title: 'Round Complete!',
+        description: currentRound < tournament.settings.rounds 
+          ? `Moving to Round ${currentRound + 1}` 
+          : 'Tournament Complete!'
+      })
+      
+      setShowRoundCompleteDialog(false)
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to complete round',
+        variant: 'destructive'
+      })
+    }
+  }
+  
+  // Handle declining round completion
+  const declineRoundCompletion = () => {
+    setUserDeclinedCompletion(true)
+    setShowRoundCompleteDialog(false)
+    toast({
+      title: 'Continue Scoring',
+      description: 'You can continue to adjust game results. Click any score to be asked again.'
+    })
+  }
   
   if (!hasSchedule) {
     return (
@@ -165,7 +239,7 @@ export default function LiveTournament({ tournament, currentRound, isAdmin, isSc
     return <Gamepad2 className="h-5 w-5" />
   }
   
-  const completedGames = round.games.filter(g => g.status === 'completed').length
+  const completedGames = round.games.filter(g => g.result).length
   const totalGames = round.games.length
   const restingPlayers = getRestingPlayers()
   
@@ -178,44 +252,42 @@ export default function LiveTournament({ tournament, currentRound, isAdmin, isSc
   }, {})
   
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Round Header */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Round {currentRound} of {tournament.settings.rounds}</CardTitle>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="text-lg sm:text-xl">Round {currentRound} of {tournament.settings.rounds}</CardTitle>
               <CardDescription>
                 {completedGames} of {totalGames} games completed
               </CardDescription>
             </div>
-            <div className="flex items-center gap-4">
-              {timerEnabled ? (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+              {timerEnabled && (
                 <>
                   <RoundTimer round={currentRound} tournamentId={tournament.id} />
                   {isAdmin && round.timer?.status === 'not-started' && (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min="1"
-                        max="120"
-                        value={timerDuration}
-                        onChange={(e) => setTimerDuration(parseInt(e.target.value) || 30)}
-                        className="w-20"
-                      />
-                      <span className="text-sm text-muted-foreground">min</span>
-                      <Button onClick={startRoundTimer}>
+                    <div className="flex flex-col sm:flex-row items-center gap-2">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min="1"
+                          max="120"
+                          value={timerDuration}
+                          onChange={(e) => setTimerDuration(parseInt(e.target.value) || 30)}
+                          className="w-16 sm:w-20"
+                        />
+                        <span className="text-sm text-muted-foreground flex-shrink-0">min</span>
+                      </div>
+                      <Button onClick={startRoundTimer} size="sm" className="w-full sm:w-auto">
                         <Timer className="mr-2 h-4 w-4" />
-                        Start Timer
+                        <span className="hidden sm:inline">Start Timer</span>
+                        <span className="sm:hidden">Start</span>
                       </Button>
                     </div>
                   )}
                 </>
-              ) : (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <TimerOff className="h-4 w-4" />
-                  <span className="text-sm">Timer disabled</span>
-                </div>
               )}
             </div>
           </div>
@@ -224,8 +296,8 @@ export default function LiveTournament({ tournament, currentRound, isAdmin, isSc
       
       {/* Active Games */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Active Games</h3>
-        <div className="grid gap-4 md:grid-cols-2">
+        <h3 className="text-base sm:text-lg font-semibold">Active Games</h3>
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2">
           {Object.entries(gamesByStation).map(([station, games]) => (
             games.map(game => (
               <GameCard
@@ -234,6 +306,7 @@ export default function LiveTournament({ tournament, currentRound, isAdmin, isSc
                 isScorer={isScorer}
                 isAdmin={isAdmin}
                 onSwapPlayer={handlePlayerSwap}
+                onGameScored={handleGameScored}
                 icon={getGameIcon(game)}
               />
             ))
@@ -251,7 +324,7 @@ export default function LiveTournament({ tournament, currentRound, isAdmin, isSc
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            <div className="grid gap-2 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {tournament.teams.map(team => {
                 const teamResting = restingPlayers.filter(p => p.teamId === team.id)
                 if (teamResting.length === 0) return null
@@ -282,6 +355,52 @@ export default function LiveTournament({ tournament, currentRound, isAdmin, isSc
         tournament={tournament}
         onSwap={performPlayerSwap}
       />
+      
+      {/* Round Complete Confirmation Dialog */}
+      <Dialog open={showRoundCompleteDialog} onOpenChange={setShowRoundCompleteDialog}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md mx-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Trophy className="h-5 w-5 text-primary flex-shrink-0" />
+              <span>Complete Round {currentRound}?</span>
+            </DialogTitle>
+            <DialogDescription className="text-sm">
+              All games in this round have been scored. Would you like to complete this round and move to the next?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-3">
+            <div className="rounded-lg bg-muted p-3">
+              <div className="text-sm font-semibold mb-2">Round {currentRound} Summary:</div>
+              <div className="text-xs sm:text-sm text-muted-foreground space-y-1">
+                <div>• {totalGames} games completed</div>
+                <div>• {restingPlayers.length} players resting</div>
+                {currentRound < tournament.settings.rounds ? (
+                  <div>• Next: Round {currentRound + 1} of {tournament.settings.rounds}</div>
+                ) : (
+                  <div>• This is the final round - tournament will complete!</div>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="flex flex-col gap-3 sm:flex-row sm:gap-2">
+            <Button 
+              variant="outline" 
+              onClick={declineRoundCompletion}
+              className="w-full order-2 sm:order-1 text-sm"
+              size="default"
+            >
+              No, Continue Scoring
+            </Button>
+            <Button 
+              onClick={completeRound}
+              className="w-full order-1 sm:order-2 text-sm"
+              size="default"
+            >
+              {currentRound < tournament.settings.rounds ? 'Complete Round' : 'Finish Tournament'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

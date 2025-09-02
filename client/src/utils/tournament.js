@@ -196,28 +196,34 @@ export function calculateScores(tournament) {
   // Process all games
   schedule.forEach(round => {
     round.games.forEach(game => {
-      if (game.status === 'completed' && game.result) {
-        const team1Score = teamScores.get(game.player1.teamId)
-        const team2Score = teamScores.get(game.player2.teamId)
+      if (game.result) { // Only check for result, not status
+        // Handle both team-based and individual player games
+        const team1Id = game.team1Players ? game.team1Players[0].teamId : game.player1.teamId
+        const team2Id = game.team2Players ? game.team2Players[0].teamId : game.player2.teamId
         
-        team1Score.gamesPlayed++
-        team2Score.gamesPlayed++
+        const team1Score = teamScores.get(team1Id)
+        const team2Score = teamScores.get(team2Id)
         
-        if (game.result === 'player1-win') {
-          team1Score.wins++
-          team1Score.points += scoring.win
-          team2Score.losses++
-          team2Score.points += scoring.loss
-        } else if (game.result === 'player2-win') {
-          team2Score.wins++
-          team2Score.points += scoring.win
-          team1Score.losses++
-          team1Score.points += scoring.loss
-        } else if (game.result === 'draw') {
-          team1Score.draws++
-          team1Score.points += scoring.draw
-          team2Score.draws++
-          team2Score.points += scoring.draw
+        if (team1Score && team2Score) {
+          team1Score.gamesPlayed++
+          team2Score.gamesPlayed++
+          
+          if (game.result === 'team1-win' || game.result === 'player1-win') {
+            team1Score.wins++
+            team1Score.points += scoring.win
+            team2Score.losses++
+            team2Score.points += scoring.loss
+          } else if (game.result === 'team2-win' || game.result === 'player2-win') {
+            team2Score.wins++
+            team2Score.points += scoring.win
+            team1Score.losses++
+            team1Score.points += scoring.loss
+          } else if (game.result === 'draw') {
+            team1Score.draws++
+            team1Score.points += scoring.draw
+            team2Score.draws++
+            team2Score.points += scoring.draw
+          }
         }
       }
     })
@@ -238,8 +244,11 @@ export function calculateScores(tournament) {
 export function isTournamentComplete(tournament) {
   if (!tournament?.schedule) return false
   
+  // Tournament is complete if currentState says so, or if all rounds have all games with results
+  if (tournament.currentState?.status === 'completed') return true
+  
   return tournament.schedule.every(round =>
-    round.games.every(game => game.status === 'completed')
+    round.games.every(game => game.result) // Check for results instead of status
   )
 }
 
@@ -247,8 +256,14 @@ export function isTournamentComplete(tournament) {
 export function getCurrentRound(tournament) {
   if (!tournament?.schedule) return 1
   
+  // Use currentState if available
+  if (tournament.currentState?.currentRound) {
+    return tournament.currentState.currentRound
+  }
+  
+  // Fallback: find first round with incomplete games
   for (const round of tournament.schedule) {
-    const hasIncompleteGames = round.games.some(game => game.status !== 'completed')
+    const hasIncompleteGames = round.games.some(game => !game.result)
     if (hasIncompleteGames) return round.round
   }
   

@@ -31,35 +31,8 @@ async function ensureDataDir() {
 }
 ensureDataDir();
 
-// Load superuser configuration
-let superuserConfig = {};
-async function loadSuperuserConfig() {
-  try {
-    const configPath = path.join(__dirname, 'settings', 'superuser-config.json');
-    
-    try {
-      const data = await fs.readFile(configPath, 'utf8');
-      superuserConfig = JSON.parse(data);
-    } catch {
-      // Create default config if it doesn't exist
-      const defaultConfig = {
-        enabled: true,
-        password: crypto.randomBytes(16).toString('hex'),
-        passwordHash: null
-      };
-      await fs.writeFile(configPath, JSON.stringify(defaultConfig, null, 2));
-      console.log('\n=== SUPERUSER CONFIG CREATED ===');
-      console.log('Password:', defaultConfig.password);
-      console.log('Config file:', configPath);
-      console.log('Please change this password!\n');
-      superuserConfig = defaultConfig;
-    }
-  } catch (e) {
-    console.error('Failed to load superuser config:', e);
-    superuserConfig = { enabled: false };
-  }
-}
-loadSuperuserConfig();
+// Removed: Superuser configuration - no longer needed
+// Tournament creators have full control of their tournaments
 
 // In production, serve the client build
 if (isProduction) {
@@ -142,39 +115,22 @@ function authenticate(req, res, next) {
   next();
 }
 
-// Admin authentication
-async function authenticateAdmin(req, res, next) {
+// Creator authentication
+async function authenticateCreator(req, res, next) {
   authenticate(req, res, async () => {
     const tournament = await loadTournament(req.params.id);
     if (!tournament) {
       return res.status(404).json({ error: 'Tournament not found' });
     }
-    if (tournament.adminDeviceId !== req.deviceId) {
-      return res.status(403).json({ error: 'Admin access required' });
+    if (tournament.creatorDeviceId !== req.deviceId) {
+      return res.status(403).json({ error: 'Creator access required' });
     }
     req.tournament = tournament;
     next();
   });
 }
 
-// Scorer authentication
-async function authenticateScorer(req, res, next) {
-  authenticate(req, res, async () => {
-    const tournament = await loadTournament(req.params.id);
-    if (!tournament) {
-      return res.status(404).json({ error: 'Tournament not found' });
-    }
-    
-    const device = tournament.devices?.find(d => d.id === req.deviceId);
-    if (!device || (device.role !== 'SCORER' && device.role !== 'ADMIN')) {
-      return res.status(403).json({ error: 'Scorer access required' });
-    }
-    
-    req.tournament = tournament;
-    req.device = device;
-    next();
-  });
-}
+// Removed: authenticateScorer - no longer needed in simplified system
 
 // Routes
 
@@ -198,33 +154,46 @@ app.get('/api/tournaments', async (req, res) => {
   res.setHeader('Expires', '0')
   
   try {
-    console.log('[TOURNAMENTS] Attempting to read directory:', DATA_DIR)
+    const deviceId = req.headers['x-device-id']; // Optional for tournament list
     const files = await fs.readdir(DATA_DIR);
-    console.log('[TOURNAMENTS] Files found:', files)
-    const tournaments = [];
+    const myTournaments = [];
+    const publicTournaments = [];
     
     for (const file of files) {
       if (file.endsWith('.json') && !file.includes('-audit')) {
-        console.log('[TOURNAMENTS] Processing file:', file)
         try {
           const data = await fs.readFile(path.join(DATA_DIR, file), 'utf8');
           const tournament = JSON.parse(data);
-          console.log('[TOURNAMENTS] Parsed tournament:', { id: tournament.id, name: tournament.name })
-          tournaments.push({
+          
+          const tournamentInfo = {
             id: tournament.id,
             name: tournament.name,
             status: tournament.currentState.status,
-            created: tournament.created
-          });
+            created: tournament.created,
+            isPublic: tournament.isPublic || false,
+            isOwner: deviceId && tournament.creatorDeviceId === deviceId
+          };
+          
+          // Sort into creator's tournaments vs public tournaments
+          if (deviceId && tournament.creatorDeviceId === deviceId) {
+            myTournaments.push(tournamentInfo);
+          } else if (tournament.isPublic) {
+            publicTournaments.push(tournamentInfo);
+          }
         } catch (fileError) {
           console.error('[TOURNAMENTS] Error processing file:', file, fileError)
-          // Skip this file and continue with others
         }
       }
     }
     
-    console.log('[TOURNAMENTS] Returning tournaments:', tournaments.length)
-    res.json(tournaments);
+    // Sort by created date (newest first)
+    myTournaments.sort((a, b) => new Date(b.created) - new Date(a.created));
+    publicTournaments.sort((a, b) => new Date(b.created) - new Date(a.created));
+    
+    res.json({
+      myTournaments,
+      publicTournaments
+    });
   } catch (e) {
     console.error('[TOURNAMENTS] Critical error:', e)
     res.status(500).json({ error: 'Failed to load tournaments', details: e.message });
@@ -237,20 +206,16 @@ app.post('/api/tournaments', authenticate, async (req, res) => {
     id: uuidv4(),
     version: 2,
     ...req.body,
-    adminDeviceId: req.deviceId,
-    devices: [{
-      id: req.deviceId,
-      name: req.headers['x-device-name'] || 'Admin Device',
-      role: 'ADMIN'
-    }],
-    pendingRequests: [],
+    creatorDeviceId: req.deviceId,
+    creatorName: req.headers['x-device-name'] || 'Tournament Creator',
+    isPublic: false, // Default to private
     created: new Date().toISOString()
   };
   
   await saveTournament(tournament.id, tournament);
   await addAuditEntry(tournament.id, {
     deviceId: req.deviceId,
-    deviceName: req.headers['x-device-name'] || 'Admin Device',
+    deviceName: req.headers['x-device-name'] || 'Tournament Creator',
     action: 'CREATE_TOURNAMENT',
     details: { tournamentName: tournament.name }
   });
@@ -270,22 +235,24 @@ app.get('/api/tournament/:id', authenticate, async (req, res) => {
     return res.status(404).json({ error: 'Tournament not found' });
   }
   
-  // Check device permissions
-  const device = tournament.devices?.find(d => d.id === req.deviceId);
-  const role = device?.role || 'VIEWER';
+  // Check access permissions
+  const isCreator = tournament.creatorDeviceId === req.deviceId;
+  const canView = isCreator || tournament.isPublic;
   
-  // Filter data based on role
-  if (role === 'VIEWER') {
-    // Remove sensitive data for viewers
-    const { pendingRequests, ...viewerData } = tournament;
-    res.json({ ...viewerData, userRole: role });
-  } else {
-    res.json({ ...tournament, userRole: role });
+  if (!canView) {
+    return res.status(403).json({ error: 'Tournament is private' });
   }
+  
+  // Return tournament data with user role
+  res.json({ 
+    ...tournament, 
+    userRole: isCreator ? 'CREATOR' : 'VIEWER',
+    isCreator 
+  });
 });
 
-// Update tournament (admin or superuser)
-app.put('/api/tournament/:id', authenticateSuperuser, async (req, res) => {
+// Update tournament (creator only)
+app.put('/api/tournament/:id', authenticateCreator, async (req, res) => {
   await saveTournament(req.params.id, req.body);
   
   broadcastToTournament(req.params.id, {
@@ -296,185 +263,35 @@ app.put('/api/tournament/:id', authenticateSuperuser, async (req, res) => {
   res.json({ success: true });
 });
 
-// Request role with enhanced debugging
-app.post('/api/tournament/:id/request-role', authenticate, async (req, res) => {
-  console.log('[ROLE REQUEST] Received:', {
-    tournamentId: req.params.id,
-    deviceId: req.deviceId,
-    body: req.body
-  });
-  
-  try {
-    const tournament = await loadTournament(req.params.id);
-    if (!tournament) {
-      console.error('[ROLE REQUEST ERROR] Tournament not found:', req.params.id);
-      return res.status(404).json({ error: 'Tournament not found' });
-    }
-    
-    const { requestedRole, stations, deviceName } = req.body;
-    
-    // Initialize pendingRequests if not exists
-    if (!tournament.pendingRequests) {
-      tournament.pendingRequests = [];
-    }
-    
-    // Check if device already has a pending request
-    const existingRequestIndex = tournament.pendingRequests.findIndex(
-      r => r.deviceId === req.deviceId
-    );
-    
-    const newRequest = {
-      deviceId: req.deviceId,
-      deviceName: deviceName || 'Unknown Device',
-      requestedRole,
-      stations,
-      requestedAt: new Date().toISOString()
-    };
-    
-    if (existingRequestIndex >= 0) {
-      // Update existing request
-      tournament.pendingRequests[existingRequestIndex] = newRequest;
-      console.log('[ROLE REQUEST] Updated existing request:', newRequest);
-    } else {
-      // Add new request
-      tournament.pendingRequests.push(newRequest);
-      console.log('[ROLE REQUEST] Added new request:', newRequest);
-    }
-    
-    // Save tournament with retry logic
-    let saveAttempts = 0;
-    const maxAttempts = 3;
-    let saved = false;
-    
-    while (saveAttempts < maxAttempts && !saved) {
-      try {
-        await saveTournament(tournament.id, tournament);
-        saved = true;
-      } catch (saveError) {
-        saveAttempts++;
-        console.error(`[SAVE ERROR] Attempt ${saveAttempts}:`, saveError);
-        if (saveAttempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      }
-    }
-    
-    if (!saved) {
-      console.error('[ROLE REQUEST ERROR] Failed to save after', maxAttempts, 'attempts');
-      return res.status(500).json({ error: 'Failed to save request' });
-    }
-    
-    // Verify the request was saved
-    const verifyTournament = await loadTournament(tournament.id);
-    const savedRequest = verifyTournament.pendingRequests?.find(
-      r => r.deviceId === req.deviceId
-    );
-    
-    if (!savedRequest) {
-      console.error('[ROLE REQUEST ERROR] Request not found after save');
-      return res.status(500).json({ error: 'Request save verification failed' });
-    }
-    
-    console.log('[ROLE REQUEST] Verified saved request:', savedRequest);
-    console.log('[ROLE REQUEST] Total pending requests:', verifyTournament.pendingRequests.length);
-    
-    // Notify admin
-    broadcastToTournament(tournament.id, {
-      type: 'role-request',
-      data: {
-        deviceId: req.deviceId,
-        deviceName,
-        requestedRole,
-        timestamp: new Date().toISOString()
-      }
-    });
-    
-    console.log('[BROADCAST] Role request notification sent to tournament:', tournament.id);
-    
-    res.json({ 
-      status: 'pending',
-      request: savedRequest
-    });
-    
-  } catch (error) {
-    console.error('[ROLE REQUEST ERROR] Unexpected error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Grant role (admin or superuser)
-app.post('/api/tournament/:id/grant-role', authenticateSuperuser, async (req, res) => {
-  const { deviceId, role, stations } = req.body;
+// Toggle tournament public/private status (creator only)
+app.post('/api/tournament/:id/toggle-public', authenticateCreator, async (req, res) => {
   const tournament = req.tournament;
-  
-  // Update device role
-  tournament.devices = tournament.devices || [];
-  const existingDevice = tournament.devices.find(d => d.id === deviceId);
-  
-  if (existingDevice) {
-    existingDevice.role = role;
-    existingDevice.stations = stations;
-  } else {
-    const request = tournament.pendingRequests?.find(r => r.deviceId === deviceId);
-    tournament.devices.push({
-      id: deviceId,
-      name: request?.deviceName || 'Unknown Device',
-      role,
-      stations
-    });
-  }
-  
-  // Remove from pending requests
-  tournament.pendingRequests = tournament.pendingRequests?.filter(r => r.deviceId !== deviceId) || [];
+  tournament.isPublic = !tournament.isPublic;
   
   await saveTournament(tournament.id, tournament);
   await addAuditEntry(tournament.id, {
     deviceId: req.deviceId,
-    deviceName: 'Admin',
-    action: 'GRANT_PERMISSION',
-    details: { targetDeviceId: deviceId, role, stations }
+    deviceName: tournament.creatorName,
+    action: 'TOGGLE_PUBLIC',
+    details: { isPublic: tournament.isPublic }
   });
   
-  // Notify all clients
   broadcastToTournament(tournament.id, {
-    type: 'role-granted',
-    data: { deviceId, role }
+    type: 'tournament-update',
+    data: tournament
   });
   
-  res.json({ success: true });
+  res.json({ 
+    success: true, 
+    isPublic: tournament.isPublic 
+  });
 });
 
-// Revoke role (admin or superuser)
-app.post('/api/tournament/:id/revoke-role', authenticateSuperuser, async (req, res) => {
-  const { deviceId } = req.body;
-  const tournament = req.tournament;
-  
-  // Update device role
-  const device = tournament.devices?.find(d => d.id === deviceId);
-  if (device) {
-    device.role = 'VIEWER';
-    delete device.stations;
-  }
-  
-  await saveTournament(tournament.id, tournament);
-  await addAuditEntry(tournament.id, {
-    deviceId: req.deviceId,
-    deviceName: 'Admin',
-    action: 'REVOKE_PERMISSION',
-    details: { targetDeviceId: deviceId }
-  });
-  
-  // Notify all clients
-  broadcastToTournament(tournament.id, {
-    type: 'role-revoked',
-    data: { deviceId }
-  });
-  
-  res.json({ success: true });
-});
+// Removed: Complex role management system (request-role, grant-role, revoke-role)
+// The system is now simplified to creator-only control
 
-// Generate schedule endpoint (admin or superuser)
-app.post('/api/tournament/:id/generate-schedule', authenticateSuperuser, async (req, res) => {
+// Generate schedule endpoint (creator only)
+app.post('/api/tournament/:id/generate-schedule', authenticateCreator, async (req, res) => {
   try {
     const tournament = req.tournament;
     
@@ -526,15 +343,46 @@ app.post('/api/tournament/:id/generate-schedule', authenticateSuperuser, async (
   }
 });
 
-// Validate tournament setup endpoint (admin or superuser)
-app.post('/api/tournament/:id/validate', authenticateSuperuser, async (req, res) => {
+// Validate tournament setup endpoint (creator only)
+app.post('/api/tournament/:id/validate', authenticateCreator, async (req, res) => {
   const tournament = req.tournament;
   const validation = validateTournamentSetup(tournament);
   res.json(validation);
 });
 
-// Score game
-app.post('/api/tournament/:id/score', authenticateScorer, async (req, res) => {
+// Preview schedule endpoint (creator only)
+app.post('/api/tournament/:id/preview-schedule', authenticateCreator, async (req, res) => {
+  try {
+    const tournament = req.tournament;
+    
+    // Validate setup first
+    const validation = validateTournamentSetup(tournament);
+    if (!validation.valid) {
+      return res.status(400).json({ 
+        error: 'Invalid tournament setup',
+        details: validation
+      });
+    }
+    
+    // Generate preview schedule without saving to tournament
+    const schedule = generateSchedule(tournament);
+    
+    res.json({ 
+      success: true, 
+      schedule,
+      validation 
+    });
+  } catch (error) {
+    console.error('Schedule preview error:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate schedule preview',
+      message: error.message 
+    });
+  }
+});
+
+// Score game (creator only)
+app.post('/api/tournament/:id/score', authenticateCreator, async (req, res) => {
   const { gameId, result } = req.body;
   const tournament = req.tournament;
   
@@ -543,14 +391,10 @@ app.post('/api/tournament/:id/score', authenticateScorer, async (req, res) => {
   for (const round of tournament.schedule) {
     const game = round.games.find(g => g.id === gameId);
     if (game) {
-      // Check if scorer can score this game
-      if (req.device.stations && !req.device.stations.includes(game.station)) {
-        return res.status(403).json({ error: 'Not authorized for this station' });
-      }
-      
       const previousResult = game.result;
       game.result = result;
-      game.status = 'completed';
+      // Don't automatically mark as completed - keep status as 'pending' to allow re-scoring
+      // game.status = 'completed'; // Removed this line
       gameFound = true;
       
       // Build player lists for logging
@@ -565,7 +409,7 @@ app.post('/api/tournament/:id/score', authenticateScorer, async (req, res) => {
       await saveTournament(tournament.id, tournament);
       await addAuditEntry(tournament.id, {
         deviceId: req.deviceId,
-        deviceName: req.device.name,
+        deviceName: tournament.creatorName,
         action: 'SCORE_GAME',
         details: {
           gameId,
@@ -596,8 +440,8 @@ app.post('/api/tournament/:id/score', authenticateScorer, async (req, res) => {
   res.json({ success: true });
 });
 
-// Timer control (admin or superuser)
-app.post('/api/tournament/:id/round/:round/timer/start', authenticateSuperuser, async (req, res) => {
+// Timer control (creator only)
+app.post('/api/tournament/:id/round/:round/timer/start', authenticateCreator, async (req, res) => {
   const { duration = 30 } = req.body;
   const tournament = req.tournament;
   const roundNum = parseInt(req.params.round);
@@ -661,8 +505,8 @@ app.get('/api/tournament/:id/round/:round/timer', authenticate, async (req, res)
   res.json(round.timer || { status: 'not-started' });
 });
 
-// Get audit log (admin or superuser)
-app.get('/api/tournament/:id/audit', authenticateSuperuser, async (req, res) => {
+// Get audit log (creator only)
+app.get('/api/tournament/:id/audit', authenticateCreator, async (req, res) => {
   try {
     const data = await fs.readFile(path.join(DATA_DIR, `${req.params.id}-audit.json`), 'utf8');
     res.json(JSON.parse(data));
@@ -721,192 +565,120 @@ app.get('/api/tournament/:id/export', authenticate, async (req, res) => {
 
 // Import tournament
 app.post('/api/tournament/import', authenticate, async (req, res) => {
-  const tournamentData = req.body;
-  const newId = uuidv4();
-  
-  const tournament = {
-    ...tournamentData,
-    id: newId,
-    adminDeviceId: req.deviceId,
-    devices: [{
-      id: req.deviceId,
-      name: req.headers['x-device-name'] || 'Admin Device',
-      role: 'ADMIN'
-    }],
-    pendingRequests: [],
-    created: new Date().toISOString()
-  };
-  
-  await saveTournament(tournament.id, tournament);
-  res.json({ id: tournament.id });
-});
-
-// Superuser login endpoint
-app.post('/api/tournament/:id/superuser-login', authenticate, async (req, res) => {
-  const { password } = req.body;
-  const tournamentId = req.params.id;
-  
-  if (!superuserConfig.enabled) {
-    return res.status(403).json({ error: 'Superuser login disabled' });
-  }
-  
-  // Verify password
-  const isValidPassword = superuserConfig.passwordHash 
-    ? crypto.createHash('sha256').update(password).digest('hex') === superuserConfig.passwordHash
-    : password === superuserConfig.password;
+  try {
+    const tournamentData = req.body;
     
-  if (!isValidPassword) {
-    // Add delay to prevent brute force
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return res.status(401).json({ error: 'Invalid password' });
-  }
-  
-  // Load tournament
-  const tournament = await loadTournament(tournamentId);
-  if (!tournament) {
-    return res.status(404).json({ error: 'Tournament not found' });
-  }
-  
-  // Grant admin access to this device
-  const deviceId = req.deviceId;
-  const deviceName = req.headers['x-device-name'] || 'Superuser Device';
-  
-  // Update devices array
-  tournament.devices = tournament.devices || [];
-  const existingDevice = tournament.devices.find(d => d.id === deviceId);
-  
-  if (existingDevice) {
-    existingDevice.role = 'ADMIN';
-    existingDevice.name = deviceName;
-  } else {
-    tournament.devices.push({
-      id: deviceId,
-      name: deviceName,
-      role: 'ADMIN'
+    // Validate required tournament data structure
+    if (!tournamentData || typeof tournamentData !== 'object') {
+      return res.status(400).json({ error: 'Invalid tournament data format' });
+    }
+    
+    // Validate required fields
+    const requiredFields = ['name', 'settings', 'teams'];
+    for (const field of requiredFields) {
+      if (!tournamentData[field]) {
+        return res.status(400).json({ 
+          error: `Missing required field: ${field}` 
+        });
+      }
+    }
+    
+    // Generate new unique ID for the imported tournament
+    const newId = uuidv4();
+    
+    // Get current device info
+    const deviceName = req.headers['x-device-name'] || 'Admin Device';
+    
+    // Create the imported tournament with new ownership
+    const tournament = {
+      ...tournamentData,
+      // Override critical fields to ensure proper ownership and uniqueness
+      id: newId,
+      version: 2, // Ensure current version
+      creatorDeviceId: req.deviceId, // Set importing user as creator/owner
+      creatorName: deviceName,
+      isPublic: false, // Always import as private initially
+      created: new Date().toISOString(),
+      // Preserve original creation date as imported metadata if it exists
+      originalCreated: tournamentData.created || null,
+      importedAt: new Date().toISOString(),
+      importedBy: {
+        deviceId: req.deviceId,
+        deviceName: deviceName
+      }
+    };
+    
+    // Reset tournament state to setup if it was active
+    if (tournament.currentState) {
+      tournament.currentState = {
+        ...tournament.currentState,
+        status: 'setup' // Always import in setup state
+      };
+    }
+    
+    // Clear any existing game results to avoid confusion
+    if (tournament.schedule) {
+      tournament.schedule = tournament.schedule.map(round => ({
+        ...round,
+        games: round.games.map(game => ({
+          ...game,
+          result: null,
+          status: 'pending'
+        }))
+      }));
+    }
+    
+    // Save the tournament
+    await saveTournament(tournament.id, tournament);
+    
+    // Add audit log entry for the import
+    await addAuditEntry(tournament.id, {
+      deviceId: req.deviceId,
+      deviceName: deviceName,
+      action: 'IMPORT_TOURNAMENT',
+      details: {
+        originalName: tournamentData.name,
+        originalId: tournamentData.id || null,
+        originalCreated: tournamentData.created || null,
+        teamsCount: tournament.teams?.length || 0,
+        scheduleGenerated: tournament.schedule?.length > 0
+      }
+    });
+    
+    res.json({ 
+      id: tournament.id,
+      name: tournament.name 
+    });
+    
+  } catch (error) {
+    console.error('Tournament import error:', error);
+    
+    // Handle JSON parsing errors specifically
+    if (error instanceof SyntaxError) {
+      return res.status(400).json({ 
+        error: 'Invalid JSON format in tournament file' 
+      });
+    }
+    
+    // Handle file system errors
+    if (error.code === 'EACCES' || error.code === 'ENOSPC') {
+      return res.status(500).json({ 
+        error: 'Server storage error. Please try again.' 
+      });
+    }
+    
+    // Generic error fallback
+    res.status(500).json({ 
+      error: 'Failed to import tournament. Please check the file format and try again.' 
     });
   }
-  
-  // Save tournament
-  await saveTournament(tournament.id, tournament);
-  
-  // Log the action
-  await addAuditEntry(tournament.id, {
-    deviceId: deviceId,
-    deviceName: 'Superuser',
-    action: 'SUPERUSER_LOGIN',
-    details: { 
-      grantedAdmin: true,
-      timestamp: new Date().toISOString()
-    }
-  });
-  
-  // Broadcast the update
-  broadcastToTournament(tournament.id, {
-    type: 'role-granted',
-    data: { deviceId, role: 'ADMIN' }
-  });
-  
-  console.log('[SUPERUSER] Admin access granted to device:', deviceId);
-  
-  res.json({ 
-    success: true, 
-    message: 'Admin access granted via superuser login'
-  });
 });
 
-// Check device status endpoint
-app.get('/api/tournament/:id/device-status', authenticate, async (req, res) => {
-  // Prevent caching for real-time device status
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
-  res.setHeader('Pragma', 'no-cache')
-  res.setHeader('Expires', '0')
-  
-  const tournament = await loadTournament(req.params.id);
-  if (!tournament) {
-    return res.status(404).json({ error: 'Tournament not found' });
-  }
-  
-  const device = tournament.devices?.find(d => d.id === req.deviceId);
-  const isOriginalAdmin = tournament.adminDeviceId === req.deviceId;
-  
-  res.json({
-    deviceId: req.deviceId,
-    currentRole: device?.role || 'VIEWER',
-    isOriginalAdmin,
-    hasPendingRequest: tournament.pendingRequests?.some(r => r.deviceId === req.deviceId)
-  });
-});
+// Removed: Complex superuser system - no longer needed
+// Tournament creators have full control of their tournaments
 
-// Check pending requests (admin or superuser)
-app.get('/api/tournament/:id/pending-requests', authenticateSuperuser, async (req, res) => {
-  // Prevent caching for real-time pending requests
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
-  res.setHeader('Pragma', 'no-cache')
-  res.setHeader('Expires', '0')
-  
-  const tournament = req.tournament;
-  res.json({
-    pendingRequests: tournament.pendingRequests || [],
-    totalRequests: (tournament.pendingRequests || []).length,
-    devices: tournament.devices || []
-  });
-});
-
-// Superuser password verification endpoint
-app.post('/api/superuser-verify', authenticate, async (req, res) => {
-  const { password } = req.body;
-  
-  if (!superuserConfig.enabled) {
-    return res.status(403).json({ error: 'Superuser login disabled' });
-  }
-  
-  // Verify password
-  const isValidPassword = superuserConfig.passwordHash 
-    ? crypto.createHash('sha256').update(password).digest('hex') === superuserConfig.passwordHash
-    : password === superuserConfig.password;
-    
-  if (!isValidPassword) {
-    // Add delay to prevent brute force
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    return res.status(401).json({ error: 'Invalid password' });
-  }
-  
-  res.json({ 
-    success: true, 
-    message: 'Superuser password verified'
-  });
-});
-
-// Superuser authentication middleware
-async function authenticateSuperuser(req, res, next) {
-  const superuserPassword = req.headers['x-superuser-password'];
-  
-  if (!superuserPassword) {
-    return authenticateAdmin(req, res, next);
-  }
-  
-  // Verify superuser password
-  const isValidPassword = superuserConfig.passwordHash 
-    ? crypto.createHash('sha256').update(superuserPassword).digest('hex') === superuserConfig.passwordHash
-    : superuserPassword === superuserConfig.password;
-    
-  if (!isValidPassword) {
-    return res.status(401).json({ error: 'Invalid superuser password' });
-  }
-  
-  // Superuser has access to any tournament
-  authenticate(req, res, async () => {
-    const tournament = await loadTournament(req.params.id);
-    if (!tournament) {
-      return res.status(404).json({ error: 'Tournament not found' });
-    }
-    req.tournament = tournament;
-    next();
-  });
-}
-
-// Delete tournament (admin or superuser)
-app.delete('/api/tournament/:id', authenticateSuperuser, async (req, res) => {
+// Delete tournament (creator only)
+app.delete('/api/tournament/:id', authenticateCreator, async (req, res) => {
   const tournamentId = req.params.id;
   
   try {

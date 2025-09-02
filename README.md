@@ -4,7 +4,7 @@ A comprehensive web-based tournament management system for game parties and comp
 
 ## Features
 
-- **Dynamic Game Types**: Configure any game type (shuffleboard, darts, pool, cornhole, etc.) with custom player counts
+- **Dynamic Game Types**: Configure any game type (shuffleboard, darts, pool, etc.) with custom player counts
 - **Flexible Team Sizes**: Support for 1v1, 2v2, 5v5, or any team configuration
 - **Smart Scheduling**: Automatic game assignments with fair rotation and partner management
 - **Schedule Viewer**: View schedules by round, station, or individual player
@@ -106,7 +106,7 @@ The application will be available at `http://localhost:5173`
 
 3. Add game types:
    - Click "Add Game Type"
-   - Enter game name (e.g., "Pool", "Cornhole")
+   - Enter game name (e.g., "Pool", "Darts")
    - Set players per team (1 for 1v1, 2 for 2v2, etc.)
    - Set number of stations
    - Choose partner mode for team games

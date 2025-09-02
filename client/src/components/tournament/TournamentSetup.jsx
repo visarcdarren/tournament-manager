@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react'
-import { Settings, Save, AlertCircle, Timer, TimerOff, Users } from 'lucide-react'
+import { Settings, Save, AlertCircle, Timer, TimerOff, Users, Calendar, Eye } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import api from '@/utils/api'
 import useTournamentStore from '@/stores/tournamentStore'
 import GameTypeManager from './GameTypeManager'
+import ScheduleViewer from './ScheduleViewer'
 
 export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams }) {
   const { toast } = useToast()
@@ -61,6 +63,9 @@ export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams
   
   const [isSaving, setIsSaving] = useState(false)
   const [validation, setValidation] = useState(null)
+  const [showPreview, setShowPreview] = useState(false)
+  const [previewData, setPreviewData] = useState(null)
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
   
   const handleSettingChange = (field, value) => {
     setSettings(prev => ({
@@ -174,6 +179,41 @@ export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams
     }
   }
   
+  const previewSchedule = async () => {
+    try {
+      setIsGeneratingPreview(true)
+      
+      // Save current settings first
+      const updatedTournament = {
+        ...tournament,
+        settings
+      }
+      await api.updateTournament(tournament.id, updatedTournament)
+      tournamentStore.setTournament(updatedTournament)
+      
+      // Generate preview
+      const result = await api.previewSchedule(tournament.id)
+      
+      // Create a mock tournament object for the ScheduleViewer
+      setPreviewData({
+        ...updatedTournament,
+        schedule: result.schedule,
+        validation: result.validation
+      })
+      
+      setShowPreview(true)
+      
+    } catch (error) {
+      toast({
+        title: 'Preview Failed',
+        description: error.message || 'Unable to generate schedule preview',
+        variant: 'destructive'
+      })
+    } finally {
+      setIsGeneratingPreview(false)
+    }
+  }
+  
   const canEdit = isAdmin && tournament.currentState.status === 'setup'
   const hasValidationErrors = validation && !validation.valid
   
@@ -193,6 +233,11 @@ export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams
   
   // For initial setup, we don't need teams to be created yet
   const canSaveSettings = canEdit && hasBasicSettings
+  
+  // Can preview if teams exist and validation passes
+  const canPreview = tournament.teams?.length >= 2 && 
+                    validation?.valid && 
+                    canEdit
   
   return (
     <div className="space-y-6">
@@ -410,7 +455,7 @@ export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams
           )}
           
           {canEdit && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button 
                 onClick={saveSettings} 
                 disabled={isSaving || !canSaveSettings}
@@ -426,10 +471,43 @@ export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams
                 <Users className="mr-2 h-4 w-4" />
                 {isSaving ? 'Saving...' : 'Save and Edit Teams'}
               </Button>
+              {canPreview && (
+                <Button 
+                  onClick={previewSchedule}
+                  disabled={isGeneratingPreview}
+                  variant="outline"
+                  className="border-blue-200 text-blue-700 hover:bg-blue-50"
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  {isGeneratingPreview ? 'Generating...' : 'Preview Schedule'}
+                </Button>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
+      
+      {/* Schedule Preview Dialog */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-6xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Schedule Preview
+            </DialogTitle>
+            <DialogDescription>
+              This is how your tournament schedule will look. You can review all games before starting.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden">
+            {previewData && (
+              <div className="h-full overflow-auto pr-2">
+                <ScheduleViewer tournament={previewData} />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

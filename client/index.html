@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#1e293b" />
     <meta name="description" content="Tournament management for game parties" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -20,17 +20,45 @@
         -moz-osx-font-smoothing: grayscale;
         background-color: #0f172a;
         color: #f8fafc;
+        /* Mobile optimizations */
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
       }
+      
+      /* Allow text selection in input fields and text content */
+      input, textarea, [contenteditable], .selectable-text {
+        -webkit-user-select: text;
+        user-select: text;
+      }
+      
       #root {
         min-height: 100vh;
+        min-height: 100dvh; /* Use dynamic viewport height on mobile */
       }
+      
       .loading {
         display: flex;
         align-items: center;
         justify-content: center;
         min-height: 100vh;
+        min-height: 100dvh;
         background-color: #0f172a;
         color: #f8fafc;
+      }
+      
+      /* Prevent horizontal scroll on mobile */
+      body, html {
+        overflow-x: hidden;
+      }
+      
+      /* Better button touch targets on mobile */
+      @media (max-width: 640px) {
+        button:not(.compact) {
+          min-height: 44px;
+          padding: 12px 16px;
+        }
       }
     </style>
   </head>

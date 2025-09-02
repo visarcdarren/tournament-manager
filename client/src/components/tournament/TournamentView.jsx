@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Shield, Eye, Download, Trash2, KeyRound, Calendar } from 'lucide-react'
+import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Eye, Download, Trash2, Calendar, Globe, Lock, Share } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -20,9 +20,6 @@ import TeamManagement from './TeamManagement'
 import LiveTournament from './LiveTournament'
 import Leaderboard from './Leaderboard'
 import CompletionScreen from './CompletionScreen'
-import DevicePermissions from './DevicePermissions'
-import RoleRequestDialog from './RoleRequestDialog'
-import SuperuserLoginDialog from './SuperuserLoginDialog'
 import ScheduleViewer from './ScheduleViewer'
 import { getCurrentRound, isTournamentComplete } from '@/utils/tournament'
 
@@ -33,10 +30,9 @@ export default function TournamentView({ tournamentId }) {
   const tournamentStore = useTournamentStore()
   const [activeTab, setActiveTab] = useState('setup')
   const manualTabChangeRef = useRef(false) // Use ref instead of state for immediate updates
-  const [showRoleRequest, setShowRoleRequest] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [showSuperuserLogin, setShowSuperuserLogin] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showShareDialog, setShowShareDialog] = useState(false)
   
   const { tournament, userRole, isLoading } = tournamentStore
   
@@ -89,8 +85,7 @@ export default function TournamentView({ tournamentId }) {
       tournamentStore.setTournament(data)
       tournamentStore.setUserRole(data.userRole || 'VIEWER')
       
-      // Don't store role in device store - it's tournament-specific
-      // Role comes from server and is stored in tournament store only
+      // Role is now either 'CREATOR' or 'VIEWER'
     } catch (error) {
       toast({
         title: 'Error',
@@ -123,34 +118,6 @@ export default function TournamentView({ tournamentId }) {
           status: 'running',
           expiresAt: data.expiresAt 
         })
-      },
-      'role-request': (data) => {
-        if (userRole === 'ADMIN') {
-          toast({
-            title: 'New Role Request',
-            description: `${data.deviceName} requests scorer access`
-          })
-          loadTournament() // Reload to get pending requests
-        }
-      },
-      'role-granted': (data) => {
-        if (data.deviceId === useDeviceStore.getState().deviceId) {
-          toast({
-            title: 'Access Granted',
-            description: 'You now have scorer permissions'
-          })
-          loadTournament()
-        }
-      },
-      'role-revoked': (data) => {
-        if (data.deviceId === useDeviceStore.getState().deviceId) {
-          toast({
-            title: 'Access Revoked',
-            description: 'Your scorer permissions have been removed',
-            variant: 'destructive'
-          })
-          loadTournament()
-        }
       },
       'tournament-deleted': (data) => {
         toast({
@@ -222,73 +189,132 @@ export default function TournamentView({ tournamentId }) {
     return null
   }
   
-  const isAdmin = userRole === 'ADMIN'
-  const isScorer = userRole === 'SCORER' || isAdmin
+  const isCreator = userRole === 'CREATOR'
   const currentRound = getCurrentRound(tournament)
   const isComplete = isTournamentComplete(tournament)
   
+  const togglePublicStatus = async () => {
+    const wasPublic = tournament.isPublic
+    
+    try {
+      await api.toggleTournamentPublic(tournamentId)
+      
+      // Show share dialog if tournament was just made public
+      if (!wasPublic) {
+        setShowShareDialog(true)
+      }
+      
+      toast({
+        title: 'Success',
+        description: `Tournament is now ${wasPublic ? 'private' : 'public'}`
+      })
+      loadTournament() // Reload to get updated status
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update tournament visibility',
+        variant: 'destructive'
+      })
+    }
+  }
+  
+  const shareUrl = `${window.location.origin}/tournament/${tournamentId}`
+  
+  const handleShare = async () => {
+    const shareData = {
+      title: `${tournament.name} - Tournament`,
+      text: `Follow the ${tournament.name} tournament progress`,
+      url: shareUrl
+    }
+    
+    try {
+      // Use native sharing if available (mobile)
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        await navigator.share(shareData)
+        return
+      }
+    } catch (error) {
+      console.log('Native sharing failed, falling back to clipboard')
+    }
+    
+    // Fallback: copy to clipboard
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      toast({
+        title: 'Link Copied!',
+        description: 'Tournament link copied to clipboard'
+      })
+    } catch (error) {
+      // Ultimate fallback: show the dialog
+      setShowShareDialog(true)
+    }
+  }
+  
   return (
-    <div className="min-h-screen bg-background" style={{ minHeight: '100vh', backgroundColor: '#0f172a', color: '#f8fafc' }}>
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b bg-card" style={{ borderBottom: '1px solid #334155', backgroundColor: '#1e293b' }}>
-        <div className="mx-auto max-w-7xl px-4 py-4" style={{ maxWidth: '80rem', padding: '1rem' }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="h-9 w-9">
-                <ArrowLeft className="h-5 w-5" />
+      <div className="border-b bg-card">
+        <div className="mx-auto max-w-7xl px-4 py-3 sm:py-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0">
+                <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
-              <div>
-                <h1 className="text-2xl font-bold">{tournament.name}</h1>
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold truncate">
+                  {tournament.name}
+                </h1>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">
-                    {userRole === 'ADMIN' ? (
-                      <Shield className="h-3 w-3" />
-                    ) : userRole === 'SCORER' ? (
-                      <Users className="h-3 w-3" />
-                    ) : (
-                      <Eye className="h-3 w-3" />
-                    )}
-                    {userRole}
+                    <Eye className="h-3 w-3 flex-shrink-0" />
+                    {isCreator ? 'Creator' : 'Viewer'}
                   </span>
                   {tournament.currentState.status === 'active' && (
                     <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
+                      <Clock className="h-3 w-3 flex-shrink-0" />
                       Round {currentRound} of {tournament.settings.rounds}
                     </span>
                   )}
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {userRole === 'VIEWER' && !isComplete && (
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              {isCreator && (
                 <>
-                  <Button variant="outline" onClick={() => setShowRoleRequest(true)}>
-                    Request Scorer Access
+                  {tournament.isPublic && (
+                    <Button variant="outline" onClick={handleShare} className="text-blue-600 border-blue-200 hover:bg-blue-50 w-full sm:w-auto">
+                      <Share className="mr-2 h-4 w-4" />
+                      <span className="hidden sm:inline">Share</span>
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={togglePublicStatus} className="w-full sm:w-auto">
+                    {tournament.isPublic ? (
+                      <>
+                        <Lock className="mr-2 h-4 w-4" />
+                        <span className="hidden sm:inline">Make Private</span>
+                        <span className="sm:hidden">Private</span>
+                      </>
+                    ) : (
+                      <>
+                        <Globe className="mr-2 h-4 w-4" />
+                        <span className="hidden sm:inline">Make Public</span>
+                        <span className="sm:hidden">Public</span>
+                      </>
+                    )}
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => setShowSuperuserLogin(true)}
-                    title="Superuser Login"
-                    className="h-9 w-9"
-                  >
-                    <KeyRound className="h-5 w-5" />
-                  </Button>
-                </>
-              )}
-              {isAdmin && (
-                <>
-                  <Button variant="outline" size="icon" onClick={exportTournament} className="h-9 w-9">
-                    <Download className="h-5 w-5" />
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={() => setShowDeleteDialog(true)}
-                    className="h-9 w-9 hover:bg-destructive hover:text-destructive-foreground"
-                  >
-                    <Trash2 className="h-5 w-5" />
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="icon" onClick={exportTournament} className="h-9 w-9 flex-shrink-0">
+                      <Download className="h-4 w-4 sm:h-5 sm:w-5" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={() => setShowDeleteDialog(true)}
+                      className="h-9 w-9 hover:bg-destructive hover:text-destructive-foreground flex-shrink-0"
+                    >
+                      <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
+                    </Button>
+                  </div>
                 </>
               )}
             </div>
@@ -297,7 +323,7 @@ export default function TournamentView({ tournamentId }) {
       </div>
       
       {/* Main Content */}
-      <div className="mx-auto max-w-7xl p-4" style={{ maxWidth: '80rem', padding: '1rem' }}>
+      <div className="mx-auto max-w-7xl p-4 sm:p-6">
         {isComplete && tournament.schedule?.length > 0 ? (
           <CompletionScreen tournament={tournament} />
         ) : (
@@ -305,39 +331,33 @@ export default function TournamentView({ tournamentId }) {
             manualTabChangeRef.current = true
             setActiveTab(value)
           }}>
-            <TabsList className="grid w-full grid-cols-6">
-              <TabsTrigger value="setup" disabled={!isAdmin}>
-                <Settings className="mr-2 h-4 w-4" />
-                Setup
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 h-auto">
+              <TabsTrigger value="setup" disabled={!isCreator} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                <Settings className="h-4 w-4 flex-shrink-0" />
+                <span className="text-xs sm:text-sm">Setup</span>
               </TabsTrigger>
-              <TabsTrigger value="teams" disabled={!isAdmin}>
-                <Users className="mr-2 h-4 w-4" />
-                Teams
+              <TabsTrigger value="teams" disabled={!isCreator} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                <Users className="h-4 w-4 flex-shrink-0" />
+                <span className="text-xs sm:text-sm">Teams</span>
               </TabsTrigger>
-              <TabsTrigger value="schedule" disabled={!tournament.schedule || tournament.schedule.length === 0}>
-                <Calendar className="mr-2 h-4 w-4" />
-                Schedule
+              <TabsTrigger value="schedule" disabled={!tournament.schedule || tournament.schedule.length === 0} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                <Calendar className="h-4 w-4 flex-shrink-0" />
+                <span className="text-xs sm:text-sm">Schedule</span>
               </TabsTrigger>
-              <TabsTrigger value="live" disabled={tournament.currentState.status !== 'active'}>
-                <Play className="mr-2 h-4 w-4" />
-                Live
+              <TabsTrigger value="live" disabled={tournament.currentState.status !== 'active'} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                <Play className="h-4 w-4 flex-shrink-0" />
+                <span className="text-xs sm:text-sm">Live</span>
               </TabsTrigger>
-              <TabsTrigger value="leaderboard">
-                <Trophy className="mr-2 h-4 w-4" />
-                Leaderboard
+              <TabsTrigger value="leaderboard" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4 col-span-2 sm:col-span-1">
+                <Trophy className="h-4 w-4 flex-shrink-0" />
+                <span className="text-xs sm:text-sm">Leaderboard</span>
               </TabsTrigger>
-              {isAdmin && (
-                <TabsTrigger value="devices">
-                  <Shield className="mr-2 h-4 w-4" />
-                  Devices
-                </TabsTrigger>
-              )}
             </TabsList>
             
             <TabsContent value="setup">
               <TournamentSetup 
                 tournament={tournament} 
-                isAdmin={isAdmin} 
+                isAdmin={isCreator} 
                 onNavigateToTeams={() => {
                   manualTabChangeRef.current = true
                   setActiveTab('teams')
@@ -346,7 +366,7 @@ export default function TournamentView({ tournamentId }) {
             </TabsContent>
             
             <TabsContent value="teams">
-              <TeamManagement tournament={tournament} isAdmin={isAdmin} />
+              <TeamManagement tournament={tournament} isAdmin={isCreator} />
             </TabsContent>
             
             <TabsContent value="schedule">
@@ -357,38 +377,17 @@ export default function TournamentView({ tournamentId }) {
               <LiveTournament 
                 tournament={tournament} 
                 currentRound={currentRound}
-                isAdmin={isAdmin}
-                isScorer={isScorer}
+                isAdmin={isCreator}
+                isScorer={isCreator}
               />
             </TabsContent>
             
             <TabsContent value="leaderboard">
               <Leaderboard tournament={tournament} />
             </TabsContent>
-            
-            {isAdmin && (
-              <TabsContent value="devices">
-                <DevicePermissions tournament={tournament} />
-              </TabsContent>
-            )}
           </Tabs>
         )}
       </div>
-      
-      {/* Role Request Dialog */}
-      <RoleRequestDialog 
-        open={showRoleRequest} 
-        onOpenChange={setShowRoleRequest}
-        tournamentId={tournamentId}
-      />
-      
-      {/* Superuser Login Dialog */}
-      <SuperuserLoginDialog
-        open={showSuperuserLogin}
-        onOpenChange={setShowSuperuserLogin}
-        tournamentId={tournamentId}
-        onSuccess={loadTournament}
-      />
       
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -417,6 +416,90 @@ export default function TournamentView({ tournamentId }) {
               disabled={isDeleting}
             >
               {isDeleting ? 'Deleting...' : 'Delete Tournament'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Share Dialog */}
+      <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
+        <DialogContent className="mx-4 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share className="h-5 w-5" />
+              Share Tournament
+            </DialogTitle>
+            <DialogDescription>
+              Your tournament is now public! Share this link so others can follow the progress.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Tournament Link:</label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input 
+                  type="text" 
+                  value={shareUrl}
+                  readOnly
+                  className="flex-1 px-3 py-2 text-sm border rounded-md bg-gray-50 text-gray-700 min-w-0"
+                  onClick={(e) => e.target.select()}
+                />
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(shareUrl)
+                      toast({
+                        title: 'Copied!',
+                        description: 'Link copied to clipboard'
+                      })
+                    } catch (error) {
+                      toast({
+                        title: 'Error',
+                        description: 'Could not copy to clipboard',
+                        variant: 'destructive'
+                      })
+                    }
+                  }}
+                  className="w-full sm:w-auto flex-shrink-0"
+                >
+                  Copy
+                </Button>
+              </div>
+            </div>
+            
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>• Others can view tournament progress in real-time</p>
+              <p>• They can see schedules, scores, and leaderboards</p>
+              <p>• Only you can edit or score games</p>
+            </div>
+            
+            {/* Native share button for mobile */}
+            {navigator.share && (
+              <Button 
+                onClick={async () => {
+                  try {
+                    await navigator.share({
+                      title: `${tournament.name} - Tournament`,
+                      text: `Follow the ${tournament.name} tournament progress`,
+                      url: shareUrl
+                    })
+                    setShowShareDialog(false)
+                  } catch (error) {
+                    console.log('User cancelled sharing')
+                  }
+                }}
+                className="w-full"
+              >
+                <Share className="mr-2 h-4 w-4" />
+                Share via Apps
+              </Button>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowShareDialog(false)} className="w-full">
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

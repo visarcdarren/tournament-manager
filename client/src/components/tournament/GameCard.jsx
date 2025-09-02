@@ -6,7 +6,7 @@ import { useToast } from '@/hooks/use-toast'
 import api from '@/utils/api'
 import useTournamentStore from '@/stores/tournamentStore'
 
-export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon }) {
+export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon, onGameScored }) {
   const { toast } = useToast()
   const tournamentStore = useTournamentStore()
   const [isScoring, setIsScoring] = useState(false)
@@ -20,6 +20,11 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon }
         title: 'Success',
         description: 'Game result recorded'
       })
+      
+      // Notify parent component about the scoring
+      if (onGameScored) {
+        onGameScored()
+      }
     } catch (error) {
       toast({
         title: 'Error',
@@ -31,8 +36,8 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon }
     }
   }
   
-  const isCompleted = game.status === 'completed'
-  const canScore = isScorer && !isCompleted
+  // Always allow scoring if user has scorer permissions
+  const canScore = isScorer
   
   // Check if this is a multi-player game
   const isMultiPlayer = game.team1Players && game.team2Players
@@ -67,64 +72,66 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon }
     : game.player2?.teamName || ''
   
   return (
-    <Card className={isCompleted ? 'opacity-75' : ''}>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between text-base">
-          <div className="flex items-center gap-2">
-            {icon}
-            <span>{game.stationName || game.station}</span>
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center justify-between text-sm sm:text-base">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="flex-shrink-0">{icon}</span>
+            <span className="truncate font-medium">{game.stationName || game.station}</span>
             {game.gameTypeName && (
-              <span className="text-xs text-muted-foreground">({game.gameTypeName})</span>
+              <span className="text-xs text-muted-foreground hidden sm:inline">({game.gameTypeName})</span>
             )}
           </div>
-          {isCompleted && <Check className="h-5 w-5 text-green-600" />}
+          {game.result && <Check className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 flex-shrink-0" />}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Players/Teams Display */}
         <div className="space-y-3">
           {/* Team 1 */}
-          <div className="rounded-lg border p-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  {isMultiPlayer && <Users className="h-4 w-4 text-muted-foreground" />}
-                  <div className="font-semibold">{team1Display}</div>
+          <div className="rounded-lg border p-2 sm:p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  {isMultiPlayer && <Users className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />}
+                  <div className="font-medium text-sm sm:text-base truncate">{team1Display}</div>
                 </div>
-                <div className="text-sm text-muted-foreground">{team1Name}</div>
+                <div className="text-xs sm:text-sm text-muted-foreground truncate">{team1Name}</div>
               </div>
-              {isAdmin && !isCompleted && !isMultiPlayer && (
+              {isAdmin && !game.result && !isMultiPlayer && (
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => onSwapPlayer(game, 1)}
+                  className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 p-0"
                 >
-                  <ArrowLeftRight className="h-4 w-4" />
+                  <ArrowLeftRight className="h-3 w-3 sm:h-4 sm:w-4" />
                 </Button>
               )}
             </div>
           </div>
           
           {/* VS Divider */}
-          <div className="text-center text-sm font-semibold text-muted-foreground">VS</div>
+          <div className="text-center text-xs sm:text-sm font-semibold text-muted-foreground">VS</div>
           
           {/* Team 2 */}
-          <div className="rounded-lg border p-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  {isMultiPlayer && <Users className="h-4 w-4 text-muted-foreground" />}
-                  <div className="font-semibold">{team2Display}</div>
+          <div className="rounded-lg border p-2 sm:p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  {isMultiPlayer && <Users className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />}
+                  <div className="font-medium text-sm sm:text-base truncate">{team2Display}</div>
                 </div>
-                <div className="text-sm text-muted-foreground">{team2Name}</div>
+                <div className="text-xs sm:text-sm text-muted-foreground truncate">{team2Name}</div>
               </div>
-              {isAdmin && !isCompleted && !isMultiPlayer && (
+              {isAdmin && !game.result && !isMultiPlayer && (
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => onSwapPlayer(game, 2)}
+                  className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 p-0"
                 >
-                  <ArrowLeftRight className="h-4 w-4" />
+                  <ArrowLeftRight className="h-3 w-3 sm:h-4 sm:w-4" />
                 </Button>
               )}
             </div>
@@ -133,50 +140,46 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon }
         
         {/* Scoring Buttons */}
         {canScore && (
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <Button
-              variant="outline"
+              variant={"outline"}
               size="sm"
               onClick={() => scoreGame('team1-win')}
               disabled={isScoring}
+              className={`truncate ${
+                (game.result === 'team1-win' || game.result === 'player1-win') 
+                  ? 'bg-green-600 hover:bg-green-700 text-white border-green-600' 
+                  : 'hover:bg-accent hover:text-accent-foreground'
+              }`}
             >
-              {team1Name} Wins
+              <span className="truncate">{team1Name} Wins</span>
             </Button>
             <Button
-              variant="outline"
+              variant={"outline"}
               size="sm"
               onClick={() => scoreGame('draw')}
               disabled={isScoring}
+              className={`${
+                game.result === 'draw' 
+                  ? 'bg-green-600 hover:bg-green-700 text-white border-green-600' 
+                  : 'hover:bg-accent hover:text-accent-foreground'
+              }`}
             >
               Draw
             </Button>
             <Button
-              variant="outline"
+              variant={"outline"}
               size="sm"
               onClick={() => scoreGame('team2-win')}
               disabled={isScoring}
+              className={`truncate ${
+                (game.result === 'team2-win' || game.result === 'player2-win') 
+                  ? 'bg-green-600 hover:bg-green-700 text-white border-green-600' 
+                  : 'hover:bg-accent hover:text-accent-foreground'
+              }`}
             >
-              {team2Name} Wins
+              <span className="truncate">{team2Name} Wins</span>
             </Button>
-          </div>
-        )}
-        
-        {/* Result Display */}
-        {isCompleted && (
-          <div className="rounded-lg bg-muted p-3 text-center">
-            <div className="text-sm font-semibold">
-              {game.result === 'team1-win' && `${team1Name} Won`}
-              {game.result === 'team2-win' && `${team2Name} Won`}
-              {game.result === 'player1-win' && `${team1Display} Won`}
-              {game.result === 'player2-win' && `${team2Display} Won`}
-              {game.result === 'draw' && 'Draw'}
-            </div>
-            {isMultiPlayer && (
-              <div className="mt-1 text-xs text-muted-foreground">
-                {game.result === 'team1-win' && team1Display}
-                {game.result === 'team2-win' && team2Display}
-              </div>
-            )}
           </div>
         )}
       </CardContent>

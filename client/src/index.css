@@ -115,6 +115,38 @@ body {
   border-radius: 2px;
 }
 
+/* Mobile touch improvements */
+@media (max-width: 640px) {
+  /* Ensure minimum touch target size */
+  button, .button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Improve text readability */
+  body {
+    -webkit-text-size-adjust: 100%;
+  }
+  
+  /* Better spacing for mobile */
+  .space-y-6 > * + * {
+    margin-top: 1rem;
+  }
+  
+  /* Ensure cards don't get too narrow */
+  .grid-cols-1 {
+    min-width: 0;
+  }
+}
+
+/* Tablet improvements */
+@media (min-width: 641px) and (max-width: 1024px) {
+  /* Optimize for tablet landscape */
+  .lg\:grid-cols-5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
 /* Winner celebration */
 @keyframes confetti {
   0% {

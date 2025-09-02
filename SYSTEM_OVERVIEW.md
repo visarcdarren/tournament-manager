@@ -7,7 +7,7 @@ Tournament Manager is a flexible web-based system for running multi-game tournam
 ## Key Problems It Solves
 
 ### 1. **Dynamic Game Configuration**
-**Problem:** Different events need different games - pool, darts, shuffleboard, cornhole, etc.
+**Problem:** Different events need different games - pool, darts, shuffleboard, etc.
 
 **Solution:** Flexible game type system where you can:
 - Add any game type with custom player counts
@@ -57,7 +57,6 @@ Tournament Manager is a flexible web-based system for running multi-game tournam
 - **Shuffleboard**: 1v1 strategy game
 - **Pool**: 2v2 team game with fixed partners
 - **Darts**: 1v1 precision game
-- **Cornhole**: 2v2 casual game with rotating partners
 - **Volleyball**: 5v5 team sport
 - Configure any game your venue supports!
 
