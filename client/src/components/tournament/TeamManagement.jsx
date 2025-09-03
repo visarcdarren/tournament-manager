@@ -12,6 +12,7 @@ import useTournamentStore from '@/stores/tournamentStore'
 import { v4 as uuidv4 } from 'uuid'
 import { generateRandomTeamName } from '@/utils/teamNameGenerator'
 import ScheduleViewer from './ScheduleViewer'
+import SchedulePreviewModal from './SchedulePreviewModal'
 
 // Searchable Combobox Component
 function PlayerCombobox({ value, onSelect, unallocatedPlayers, placeholder = "Select or type player name..." }) {
@@ -105,7 +106,7 @@ function PlayerCombobox({ value, onSelect, unallocatedPlayers, placeholder = "Se
   )
 }
 
-export default function TeamManagement({ tournament, isAdmin }) {
+export default function TeamManagement({ tournament, isAdmin, onNavigateToLive }) {
   const { toast } = useToast()
   const tournamentStore = useTournamentStore()
   
@@ -132,6 +133,8 @@ export default function TeamManagement({ tournament, isAdmin }) {
   const [showPreview, setShowPreview] = useState(false)
   const [previewData, setPreviewData] = useState(null)
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
+  const [isExistingSchedule, setIsExistingSchedule] = useState(false)
+  const [isRegeneratingSchedule, setIsRegeneratingSchedule] = useState(false)
   
   const canEdit = isAdmin && tournament.currentState.status === 'setup'
   const totalPlayers = tournament.teams.reduce((sum, team) => sum + team.players.length, 0)
@@ -499,6 +502,11 @@ export default function TeamManagement({ tournament, isAdmin }) {
       // Generate schedule using the API
       const response = await api.generateSchedule(tournament.id)
       
+      // Navigate to live tab if callback provided
+      if (onNavigateToLive) {
+        onNavigateToLive()
+      }
+      
       toast({
         title: 'Tournament Started!',
         description: `Generated ${response.schedule.length} rounds with ${response.schedule.reduce((sum, r) => sum + r.games.length, 0)} total games`
@@ -514,11 +522,15 @@ export default function TeamManagement({ tournament, isAdmin }) {
     }
   }
   
-  const previewSchedule = async () => {
+  const previewSchedule = async (forceRegenerate = false) => {
     try {
-      setIsGeneratingPreview(true)
+      if (forceRegenerate) {
+        setIsRegeneratingSchedule(true)
+      } else {
+        setIsGeneratingPreview(true)
+      }
       
-      const result = await api.previewSchedule(tournament.id)
+      const result = await api.previewSchedule(tournament.id, forceRegenerate)
       
       // Create a mock tournament object for the ScheduleViewer
       setPreviewData({
@@ -527,7 +539,15 @@ export default function TeamManagement({ tournament, isAdmin }) {
         validation: result.validation
       })
       
+      setIsExistingSchedule(result.isExisting)
       setShowPreview(true)
+      
+      if (!result.isExisting) {
+        toast({
+          title: 'Schedule Generated',
+          description: 'Your tournament schedule has been created and saved.'
+        })
+      }
       
     } catch (error) {
       toast({
@@ -537,7 +557,12 @@ export default function TeamManagement({ tournament, isAdmin }) {
       })
     } finally {
       setIsGeneratingPreview(false)
+      setIsRegeneratingSchedule(false)
     }
+  }
+  
+  const handleRegenerateSchedule = () => {
+    previewSchedule(true)
   }
   
   return (
@@ -625,7 +650,7 @@ export default function TeamManagement({ tournament, isAdmin }) {
             {canEdit && (
               <>
                 <Button 
-                  onClick={previewSchedule}
+                  onClick={() => previewSchedule()}
                   disabled={!isSetupComplete || isGeneratingPreview}
                   variant="outline"
                   className={isSetupComplete ? "" : "opacity-50"}
@@ -1013,27 +1038,16 @@ export default function TeamManagement({ tournament, isAdmin }) {
         </DialogContent>
       </Dialog>
       
-      {/* Schedule Preview Dialog */}
-      <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-6xl max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Eye className="h-5 w-5" />
-              Schedule Preview
-            </DialogTitle>
-            <DialogDescription>
-              This is how your tournament schedule will look. You can review all games before starting.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-hidden">
-            {previewData && (
-              <div className="h-full overflow-auto pr-2">
-                <ScheduleViewer tournament={previewData} />
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Schedule Preview Modal */}
+      <SchedulePreviewModal 
+        isOpen={showPreview} 
+        onClose={setShowPreview} 
+        previewData={previewData}
+        isExisting={isExistingSchedule}
+        onRegenerate={handleRegenerateSchedule}
+        isRegenerating={isRegeneratingSchedule}
+        isAdmin={false}
+      />
     </div>
   )
 }

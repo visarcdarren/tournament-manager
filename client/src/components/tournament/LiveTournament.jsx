@@ -41,8 +41,8 @@ export default function LiveTournament({ tournament, currentRound, isAdmin, isSc
   // Handle game scoring completion
   const handleGameScored = () => {
     // Check if all games are now scored
-    if (areAllGamesScored() && (!userDeclinedCompletion || userDeclinedCompletion)) {
-      // Reset declined flag and show dialog
+    if (areAllGamesScored()) {
+      // Always reset declined flag and show dialog when all games are complete
       setUserDeclinedCompletion(false)
       setShowRoundCompleteDialog(true)
     }

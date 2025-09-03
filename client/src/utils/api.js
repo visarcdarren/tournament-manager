@@ -78,9 +78,10 @@ class TournamentAPI {
     })
   }
   
-  async previewSchedule(id) {
+  async previewSchedule(id, forceRegenerate = false) {
     return this.fetch(`/tournament/${id}/preview-schedule`, {
-      method: 'POST'
+      method: 'POST',
+      body: JSON.stringify({ forceRegenerate })
     })
   }
   

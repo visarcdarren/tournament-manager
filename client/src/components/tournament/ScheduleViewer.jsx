@@ -429,6 +429,59 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
                     </Card>
                   )
                 })}
+
+                {/* Resting Players Section */}
+                {(() => {
+                  const playingPlayerIds = new Set()
+                  tournament.schedule[selectedRound - 1].games.forEach(game => {
+                    if (game.team1Players) {
+                      game.team1Players.forEach(p => playingPlayerIds.add(p.playerId))
+                    }
+                    if (game.team2Players) {
+                      game.team2Players.forEach(p => playingPlayerIds.add(p.playerId))
+                    }
+                    if (game.player1) {
+                      playingPlayerIds.add(game.player1.playerId)
+                    }
+                    if (game.player2) {
+                      playingPlayerIds.add(game.player2.playerId)
+                    }
+                  })
+                  
+                  const restingPlayers = allPlayers.filter(player => !playingPlayerIds.has(player.id))
+                  
+                  if (restingPlayers.length === 0) return null
+                  
+                  return (
+                    <Card className="border-dashed border-2">
+                      <CardHeader>
+                        <CardTitle className="flex items-center justify-between text-base">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4" />
+                            <span>Rest Area</span>
+                          </div>
+                          <Badge variant="outline" className="text-xs text-muted-foreground">
+                            Resting
+                          </Badge>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-3">
+                          {restingPlayers.map(player => (
+                            <div key={player.id} className="rounded-lg border p-3">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="font-semibold">{player.name}</div>
+                                  <div className="text-sm text-muted-foreground">{player.teamName}</div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })()}
               </div>
             </CardContent>
           </Card>
@@ -482,6 +535,56 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
                 </Card>
               )
             })}
+            
+            {/* Rest Area Station */}
+            <Card className="border-dashed border-2">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Rest Area
+                </CardTitle>
+                <CardDescription>
+                  Player rest periods • {tournament.schedule.length} rounds
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {tournament.schedule.map((round, roundIndex) => {
+                    // Calculate resting players for this round
+                    const playingPlayerIds = new Set()
+                    round.games.forEach(game => {
+                      if (game.team1Players) {
+                        game.team1Players.forEach(p => playingPlayerIds.add(p.playerId))
+                      }
+                      if (game.team2Players) {
+                        game.team2Players.forEach(p => playingPlayerIds.add(p.playerId))
+                      }
+                      if (game.player1) {
+                        playingPlayerIds.add(game.player1.playerId)
+                      }
+                      if (game.player2) {
+                        playingPlayerIds.add(game.player2.playerId)
+                      }
+                    })
+                    
+                    const restingPlayers = allPlayers.filter(player => !playingPlayerIds.has(player.id))
+                    
+                    if (restingPlayers.length === 0) return null
+                    
+                    return (
+                      <div key={roundIndex} className="rounded border p-2 text-sm">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-semibold">Round {roundIndex + 1}</span>
+                        </div>
+                        <div className="text-muted-foreground">
+                          {restingPlayers.map(p => `${p.name} (${p.teamName})`).join(', ')}
+                        </div>
+                      </div>
+                    )
+                  }).filter(Boolean)}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
         

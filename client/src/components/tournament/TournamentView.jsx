@@ -105,6 +105,23 @@ export default function TournamentView({ tournamentId }) {
     const eventSource = api.connectToEvents(tournamentId, {
       'tournament-update': (data) => {
         tournamentStore.setTournament(data)
+        
+        // If tournament just became active and we haven't manually changed tabs, go to live
+        if (data.currentState?.status === 'active' && !manualTabChangeRef.current) {
+          setActiveTab('live')
+        }
+      },
+      'tournament-started': (data) => {
+        tournamentStore.setTournament(data)
+        
+        // Reset manual flag and navigate to live tab
+        manualTabChangeRef.current = false
+        setActiveTab('live')
+        
+        toast({
+          title: 'Tournament Started!',
+          description: 'Tournament is now live!'
+        })
       },
       'game-scored': (data) => {
         tournamentStore.updateGameResult(data.round, data.gameId, data.result)
@@ -310,6 +327,12 @@ export default function TournamentView({ tournamentId }) {
       
       const response = await api.generateSchedule(tournament.id)
       
+      // Reset manual flag to allow automatic navigation
+      manualTabChangeRef.current = false
+      
+      // Force navigation to live tab immediately
+      setActiveTab('live')
+      
       toast({
         title: 'Tournament Started!',
         description: `Started with ${response.schedule.length} rounds and ${response.schedule.reduce((sum, r) => sum + r.games.length, 0)} total games`
@@ -514,7 +537,14 @@ export default function TournamentView({ tournamentId }) {
             </TabsContent>
             
             <TabsContent value="teams">
-              <TeamManagement tournament={tournament} isAdmin={isAdmin} />
+              <TeamManagement 
+                tournament={tournament} 
+                isAdmin={isAdmin}
+                onNavigateToLive={() => {
+                  manualTabChangeRef.current = false
+                  setActiveTab('live')
+                }}
+              />
             </TabsContent>
             
             <TabsContent value="schedule">

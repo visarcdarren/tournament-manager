@@ -11,6 +11,7 @@ import api from '@/utils/api'
 import useTournamentStore from '@/stores/tournamentStore'
 import GameTypeManager from './GameTypeManager'
 import ScheduleViewer from './ScheduleViewer'
+import SchedulePreviewModal from './SchedulePreviewModal'
 import AdminSharingDialog from './AdminSharingDialog'
 
 export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, onNavigateToPlayers, onTogglePublicStatus, onExportTournament, onDeleteTournament, onShare }) {
@@ -67,6 +68,8 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
   const [showPreview, setShowPreview] = useState(false)
   const [previewData, setPreviewData] = useState(null)
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
+  const [isExistingSchedule, setIsExistingSchedule] = useState(false)
+  const [isRegeneratingSchedule, setIsRegeneratingSchedule] = useState(false)
   const [showResetDialog, setShowResetDialog] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
   
@@ -182,9 +185,13 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
     }
   }
   
-  const previewSchedule = async () => {
+  const previewSchedule = async (forceRegenerate = false) => {
     try {
-      setIsGeneratingPreview(true)
+      if (forceRegenerate) {
+        setIsRegeneratingSchedule(true)
+      } else {
+        setIsGeneratingPreview(true)
+      }
       
       // Save current settings first
       const updatedTournament = {
@@ -194,8 +201,8 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
       await api.updateTournament(tournament.id, updatedTournament)
       tournamentStore.setTournament(updatedTournament)
       
-      // Generate preview
-      const result = await api.previewSchedule(tournament.id)
+      // Generate/retrieve preview
+      const result = await api.previewSchedule(tournament.id, forceRegenerate)
       
       // Create a mock tournament object for the ScheduleViewer
       setPreviewData({
@@ -204,7 +211,15 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
         validation: result.validation
       })
       
+      setIsExistingSchedule(result.isExisting)
       setShowPreview(true)
+      
+      if (!result.isExisting) {
+        toast({
+          title: 'Schedule Generated',
+          description: 'Your tournament schedule has been created and saved.'
+        })
+      }
       
     } catch (error) {
       toast({
@@ -214,7 +229,12 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
       })
     } finally {
       setIsGeneratingPreview(false)
+      setIsRegeneratingSchedule(false)
     }
+  }
+  
+  const handleRegenerateSchedule = () => {
+    previewSchedule(true)
   }
   
   const handleReset = async () => {
@@ -734,7 +754,7 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
               </Button>
               {canPreview && (
                 <Button 
-                  onClick={previewSchedule}
+                  onClick={() => previewSchedule()}
                   disabled={isGeneratingPreview}
                   variant="outline"
                 >
@@ -799,27 +819,16 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
         </Card>
       )}
       
-      {/* Schedule Preview Dialog */}
-      <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-6xl max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Schedule Preview
-            </DialogTitle>
-            <DialogDescription>
-              This is how your tournament schedule will look. You can review all games before starting.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-hidden">
-            {previewData && (
-              <div className="h-full overflow-auto pr-2">
-                <ScheduleViewer tournament={previewData} isAdmin={false} />
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Schedule Preview Modal */}
+      <SchedulePreviewModal 
+        isOpen={showPreview} 
+        onClose={setShowPreview} 
+        previewData={previewData}
+        isExisting={isExistingSchedule}
+        onRegenerate={handleRegenerateSchedule}
+        isRegenerating={isRegeneratingSchedule}
+        isAdmin={false}
+      />
       
       {/* Reset Confirmation Dialog */}
       <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>

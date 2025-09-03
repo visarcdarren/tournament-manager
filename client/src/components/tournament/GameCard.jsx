@@ -16,12 +16,27 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon, 
       setIsScoring(true)
       await api.scoreGame(tournamentStore.tournament.id, game.id, result)
       
+      // Update the local tournament state immediately
+      const updatedTournament = { ...tournamentStore.tournament }
+      
+      // Find and update the game result in the local state
+      for (const round of updatedTournament.schedule) {
+        const targetGame = round.games.find(g => g.id === game.id)
+        if (targetGame) {
+          targetGame.result = result
+          break
+        }
+      }
+      
+      // Update the store with the new tournament state
+      tournamentStore.setTournament(updatedTournament)
+      
       toast({
         title: 'Success',
         description: 'Game result recorded'
       })
       
-      // Notify parent component about the scoring
+      // Notify parent component about the scoring AFTER state is updated
       if (onGameScored) {
         onGameScored()
       }
