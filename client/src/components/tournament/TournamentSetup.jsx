@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Settings, Save, AlertCircle, Timer, TimerOff, Users, Calendar, Eye, RotateCcw } from 'lucide-react'
+import { Settings, Save, AlertCircle, Timer, TimerOff, Users, Calendar, Eye, RotateCcw, Globe, Lock, Share, Trash2, Download } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,7 +13,7 @@ import GameTypeManager from './GameTypeManager'
 import ScheduleViewer from './ScheduleViewer'
 import AdminSharingDialog from './AdminSharingDialog'
 
-export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, onNavigateToPlayers }) {
+export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, onNavigateToPlayers, onTogglePublicStatus, onExportTournament, onDeleteTournament, onShare }) {
   const { toast } = useToast()
   const tournamentStore = useTournamentStore()
   const [settings, setSettings] = useState(() => {
@@ -445,21 +445,30 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
               </div>
               
               <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox 
-                    id="timer-enabled"
-                    checked={settings.timer.enabled}
-                    onCheckedChange={(checked) => handleTimerChange('enabled', checked)}
-                    disabled={!canEdit}
-                  />
-                  <Label 
-                    htmlFor="timer-enabled" 
-                    className="flex items-center gap-2 cursor-pointer"
-                  >
-                    {settings.timer.enabled ? <Timer className="h-4 w-4" /> : <TimerOff className="h-4 w-4" />}
-                    Enable Round Timer
-                  </Label>
-                </div>
+                <Label>Round Timer</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleTimerChange('enabled', !settings.timer.enabled)}
+                  disabled={!canEdit}
+                  className={`w-full sm:w-auto flex items-center justify-center gap-2 h-12 sm:h-10 text-base sm:text-sm ${
+                    settings.timer.enabled 
+                      ? 'bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200' 
+                      : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  {settings.timer.enabled ? (
+                    <>
+                      <Timer className="h-5 w-5 sm:h-4 sm:w-4" style={{ flexShrink: 0 }} />
+                      Round Timer Enabled
+                    </>
+                  ) : (
+                    <>
+                      <TimerOff className="h-5 w-5 sm:h-4 sm:w-4" style={{ flexShrink: 0 }} />
+                      Enable Round Timer
+                    </>
+                  )}
+                </Button>
                 
                 {settings.timer.enabled && (
                   <div>
@@ -540,20 +549,103 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
         </Card>
       )}
 
-      {/* Admin Sharing */}
+      {/* Access Management */}
       {isAdmin && (
         <Card>
           <CardHeader>
-            <CardTitle>Admin Access</CardTitle>
+            <CardTitle>Access & Sharing</CardTitle>
             <CardDescription>
-              Share admin access with other users via secure password-protected links
+              Control who can access your tournament and how they can interact with it
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Public/Private Status */}
+            <div className="space-y-4">
+              <h4 className="font-semibold text-base">Tournament Visibility</h4>
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="space-y-1">
+                  <div className="font-medium flex items-center gap-2">
+                    {tournament.isPublic ? (
+                      <>
+                        <Globe className="h-4 w-4 text-green-600" />
+                        Public Tournament
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="h-4 w-4 text-gray-500" />
+                        Private Tournament
+                      </>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {tournament.isPublic 
+                      ? 'Anyone with the link can view tournament progress in real-time'
+                      : 'Only you and shared admins can access this tournament'
+                    }
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {tournament.isPublic && (
+                    <Button variant="outline" onClick={onShare} size="sm">
+                      <Share className="mr-2 h-4 w-4" />
+                      Share
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={onTogglePublicStatus} size="sm">
+                    {tournament.isPublic ? (
+                      <>
+                        <Lock className="mr-2 h-4 w-4" />
+                        Make Private
+                      </>
+                    ) : (
+                      <>
+                        <Globe className="mr-2 h-4 w-4" />
+                        Make Public
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Admin Sharing */}
+            <div className="space-y-4">
+              <h4 className="font-semibold text-base">Admin Sharing</h4>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Grant admin access to other users via secure password-protected links. 
+                  Admins can modify tournament settings, manage teams, and control all aspects of the tournament.
+                </p>
+                <AdminSharingDialog 
+                  tournament={tournament} 
+                  isOriginalAdmin={isOriginalAdmin}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Data Backup */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Data Backup</CardTitle>
+            <CardDescription>
+              Export tournament data for backup or analysis purposes
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <AdminSharingDialog 
-              tournament={tournament} 
-              isOriginalAdmin={isOriginalAdmin}
-            />
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Download a complete backup of your tournament including all settings, teams, 
+                players, schedule, and results in JSON format.
+              </p>
+              <Button variant="outline" onClick={onExportTournament}>
+                <Download className="mr-2 h-4 w-4" />
+                Export Tournament Data
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -655,25 +747,54 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
         </CardContent>
       </Card>
       
-      {/* Reset Tournament Section - Only show if tournament has started or has results */}
-      {canReset && (
+      {/* Danger Zone */}
+      {isAdmin && (
         <Card className="border-red-200">
           <CardHeader>
             <CardTitle className="text-red-700">Danger Zone</CardTitle>
             <CardDescription>
-              Reset tournament progress and return to setup state. This will clear all game results but keep the schedule structure.
+              Destructive actions that cannot be undone
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Button 
-              variant="destructive"
-              onClick={() => setShowResetDialog(true)}
-              disabled={isResetting}
-              className="w-full sm:w-auto"
-            >
-              <RotateCcw className="mr-2 h-4 w-4" />
-              {isResetting ? 'Resetting...' : 'Reset Tournament Progress'}
-            </Button>
+          <CardContent className="space-y-4">
+            {/* Reset Tournament - Only show if tournament has started or has results */}
+            {canReset && (
+              <div className="space-y-3">
+                <div>
+                  <h4 className="font-semibold text-base text-red-700 mb-2">Reset Tournament Progress</h4>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Reset tournament progress and return to setup state. This will clear all game results but keep the schedule structure.
+                  </p>
+                  <Button 
+                    variant="destructive"
+                    onClick={() => setShowResetDialog(true)}
+                    disabled={isResetting}
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    {isResetting ? 'Resetting...' : 'Reset Tournament Progress'}
+                  </Button>
+                </div>
+                {/* Divider */}
+                <div className="border-t border-red-200" />
+              </div>
+            )}
+            
+            {/* Delete Tournament */}
+            <div className="space-y-3">
+              <div>
+                <h4 className="font-semibold text-base text-red-700 mb-2">Delete Tournament</h4>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Permanently delete this tournament and all associated data. This action cannot be undone.
+                </p>
+                <Button 
+                  variant="destructive"
+                  onClick={onDeleteTournament}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Tournament
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

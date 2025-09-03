@@ -692,20 +692,20 @@ export default function TeamManagement({ tournament, isAdmin }) {
                       className="h-8"
                     />
                     <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-green-600 hover:text-white hover:bg-green-600 border-green-600"
-                      onClick={() => updateTeamName(team.id, team.name)}
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-green-600 hover:text-white hover:bg-green-600 border-green-600 flex items-center justify-center"
+                    onClick={() => updateTeamName(team.id, team.name)}
                     >
-                      <Check className="h-4 w-4" />
+                    <Check className="h-4 w-4" style={{ flexShrink: 0 }} />
                     </Button>
                     <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-gray-600 hover:text-white hover:bg-gray-600 border-gray-600"
-                      onClick={() => setEditingTeam(null)}
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-gray-600 hover:text-white hover:bg-gray-600 border-gray-600 flex items-center justify-center"
+                    onClick={() => setEditingTeam(null)}
                     >
-                      <X className="h-4 w-4" />
+                    <X className="h-4 w-4" style={{ flexShrink: 0 }} />
                     </Button>
                   </div>
                 ) : (
@@ -716,29 +716,29 @@ export default function TeamManagement({ tournament, isAdmin }) {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 text-blue-600 hover:text-white hover:bg-blue-600 border-blue-600"
+                          className="h-8 w-8 text-blue-600 hover:text-white hover:bg-blue-600 border-blue-600 flex items-center justify-center"
                           onClick={() => setEditingTeam(team.id)}
                         >
-                          <Edit2 className="h-4 w-4" />
+                          <Edit2 className="h-4 w-4" style={{ flexShrink: 0 }} />
                         </Button>
                         {hasUnallocatedPlayers && team.players.length < tournament.settings.playersPerTeam && (
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-green-600 hover:text-white hover:bg-green-600 border-green-600"
+                            className="h-8 w-8 text-green-600 hover:text-white hover:bg-green-600 border-green-600 flex items-center justify-center"
                             onClick={() => randomlyAllocateToTeam(team)}
                             title="Randomly add players from pool"
                           >
-                            <Shuffle className="h-4 w-4" />
+                            <Shuffle className="h-4 w-4" style={{ flexShrink: 0 }} />
                           </Button>
                         )}
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 text-red-600 hover:text-white hover:bg-red-600 border-red-600"
+                          className="h-8 w-8 text-red-600 hover:text-white hover:bg-red-600 border-red-600 flex items-center justify-center"
                           onClick={() => deleteTeam(team.id)}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4" style={{ flexShrink: 0 }} />
                         </Button>
                       </div>
                     )}
@@ -764,11 +764,11 @@ export default function TeamManagement({ tournament, isAdmin }) {
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-6 w-6 text-orange-600 hover:text-white hover:bg-orange-600 border-orange-600"
+                        className="h-6 w-6 text-orange-600 hover:text-white hover:bg-orange-600 border-orange-600 flex items-center justify-center"
                         onClick={() => removePlayerFromTeam(team.id, player.id, true)}
                         title="Remove from team (move to pool)"
                       >
-                        <ArrowLeft className="h-3 w-3" />
+                        <ArrowLeft className="h-3 w-3" style={{ flexShrink: 0 }} />
                       </Button>
                     )}
                   </div>
@@ -952,20 +952,20 @@ export default function TeamManagement({ tournament, isAdmin }) {
                             className="h-8"
                           />
                           <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-green-600 hover:text-white hover:bg-green-600 border-green-600"
-                            onClick={() => updatePlayerName(selectedTeam.id, player.id, player.name)}
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-green-600 hover:text-white hover:bg-green-600 border-green-600 flex items-center justify-center"
+                          onClick={() => updatePlayerName(selectedTeam.id, player.id, player.name)}
                           >
-                            <Check className="h-4 w-4" />
+                          <Check className="h-4 w-4" style={{ flexShrink: 0 }} />
                           </Button>
                           <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-gray-600 hover:text-white hover:bg-gray-600 border-gray-600"
-                            onClick={() => setEditingPlayer(null)}
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-gray-600 hover:text-white hover:bg-gray-600 border-gray-600 flex items-center justify-center"
+                          onClick={() => setEditingPlayer(null)}
                           >
-                            <X className="h-4 w-4" />
+                          <X className="h-4 w-4" style={{ flexShrink: 0 }} />
                           </Button>
                         </div>
                       ) : (
@@ -976,29 +976,29 @@ export default function TeamManagement({ tournament, isAdmin }) {
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8 text-blue-600 hover:text-white hover:bg-blue-600 border-blue-600"
+                                className="h-8 w-8 text-blue-600 hover:text-white hover:bg-blue-600 border-blue-600 flex items-center justify-center"
                                 onClick={() => setEditingPlayer(player.id)}
                                 title="Edit name"
                               >
-                                <Edit2 className="h-4 w-4" />
+                                <Edit2 className="h-4 w-4" style={{ flexShrink: 0 }} />
                               </Button>
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8 text-orange-600 hover:text-white hover:bg-orange-600 border-orange-600"
+                                className="h-8 w-8 text-orange-600 hover:text-white hover:bg-orange-600 border-orange-600 flex items-center justify-center"
                                 onClick={() => removePlayerFromTeam(selectedTeam.id, player.id, true)}
                                 title="Move back to pool"
                               >
-                                <ArrowLeft className="h-4 w-4" />
+                                <ArrowLeft className="h-4 w-4" style={{ flexShrink: 0 }} />
                               </Button>
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8 text-red-600 hover:text-white hover:bg-red-600 border-red-600"
+                                className="h-8 w-8 text-red-600 hover:text-white hover:bg-red-600 border-red-600 flex items-center justify-center"
                                 onClick={() => removePlayerFromTeam(selectedTeam.id, player.id, false)}
                                 title="Delete player"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-4 w-4" style={{ flexShrink: 0 }} />
                               </Button>
                             </div>
                           )}
