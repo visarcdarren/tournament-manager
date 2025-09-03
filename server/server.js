@@ -197,13 +197,32 @@ app.get('/api/tournaments', async (req, res) => {
           const hasAdminAccess = deviceId && tournament.devices?.some(d => d.id === deviceId && d.role === 'ADMIN');
           const isAdmin = isOriginalAdmin || hasAdminAccess;
           
+          // Determine actual status using completion logic
+          let actualStatus = tournament.currentState.status;
+          if (actualStatus === 'active' && tournament.schedule && tournament.schedule.length > 0) {
+            // Check if all games have results
+            const allGamesComplete = tournament.schedule.every(round =>
+              round.games.every(game => game.result)
+            );
+            if (allGamesComplete) {
+              actualStatus = 'completed';
+            }
+          }
+          
           const tournamentInfo = {
             id: tournament.id,
             name: tournament.name,
-            status: tournament.currentState.status,
+            status: actualStatus,
             created: tournament.created,
             isPublic: tournament.isPublic || false,
-            isAdmin: isAdmin
+            isAdmin: isAdmin,
+            // Include settings and team info for card display
+            settings: {
+              teams: tournament.settings?.teams || 0,
+              playersPerTeam: tournament.settings?.playersPerTeam || 0,
+              gameTypes: tournament.settings?.gameTypes || []
+            },
+            teamCount: tournament.teams?.length || 0
           };
           
           // Sort into admin tournaments vs public tournaments
@@ -857,6 +876,19 @@ app.post('/api/tournament/:id/score', authenticateScorer, async (req, res) => {
         game.team2Players.map(p => `${p.playerName} (${p.teamName})`).join(' & ') :
         `${game.player2.playerName} (${game.player2.teamName})`;
       
+      // Check if all games are now completed
+      const allGamesComplete = tournament.schedule.every(round =>
+        round.games.every(game => game.result)
+      );
+      
+      // Update tournament status if all games are complete
+      if (allGamesComplete && tournament.currentState.status !== 'completed') {
+        tournament.currentState = {
+          ...tournament.currentState,
+          status: 'completed'
+        };
+      }
+      
       await saveTournament(tournament.id, tournament);
       await addAuditEntry(tournament.id, {
         deviceId: req.deviceId,
@@ -870,15 +902,24 @@ app.post('/api/tournament/:id/score', authenticateScorer, async (req, res) => {
           team1: team1Names,
           team2: team2Names,
           result,
-          previousResult
+          previousResult,
+          tournamentCompleted: allGamesComplete
         }
       });
       
       // Broadcast update
       broadcastToTournament(tournament.id, {
         type: 'game-scored',
-        data: { gameId, result, round: round.round }
+        data: { gameId, result, round: round.round, tournamentCompleted: allGamesComplete }
       });
+      
+      // If tournament just completed, broadcast completion event
+      if (allGamesComplete && tournament.currentState.status === 'completed') {
+        broadcastToTournament(tournament.id, {
+          type: 'tournament-completed',
+          data: tournament
+        });
+      }
       
       break;
     }

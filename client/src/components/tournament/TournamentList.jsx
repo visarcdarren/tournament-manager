@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Trophy, Calendar, Users, Download, Upload, Trash2, Edit, Shield, Globe, Lock } from 'lucide-react'
+import { Plus, Trophy, Calendar, Users, Download, Upload, Globe, Lock } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,88 +15,60 @@ import MobileInstallBanner from '@/components/common/MobileInstallBanner'
 function TournamentCard({ tournament, navigate, showAdminControls }) {
   const { toast } = useToast()
   
-  const deleteTournament = async (tournamentId, tournamentName) => {
-    if (!confirm(`Are you sure you want to delete "${tournamentName}"? This cannot be undone.`)) {
-      return
-    }
-    
-    try {
-      await api.deleteTournament(tournamentId)
-      
-      toast({
-        title: 'Success',
-        description: `Tournament "${tournamentName}" deleted successfully`
-      })
-      
-      // Reload the page to refresh tournament list
-      window.location.reload()
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to delete tournament',
-        variant: 'destructive'
-      })
-    }
-  }
-  
   return (
-    <Card className="transition-colors hover:bg-accent relative">
-      {showAdminControls && (
-        <div className="absolute top-2 right-2 flex gap-1 z-10">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              navigate(`/tournament/${tournament.id}`)
-            }}
-            className="h-8 w-8 p-0"
-          >
-            <Edit className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              deleteTournament(tournament.id, tournament.name)
-            }}
-            className="h-8 w-8 p-0"
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
-        </div>
-      )}
-      
+    <Card className="transition-colors hover:bg-accent">
       <div
         className="cursor-pointer"
         onClick={() => navigate(`/tournament/${tournament.id}`)}
       >
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg pr-16">
-            <span className="truncate">{tournament.name}</span>
+        <CardHeader className="pb-4">
+          {/* Tournament Name - Full width, no truncating */}
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg mb-4">
+            <span className="flex-1">{tournament.name}</span>
             {tournament.isPublic ? (
-              <Globe className="h-4 w-4 text-green-600 flex-shrink-0" title="Public" />
+              <Globe className="h-4 w-4 text-green-600 flex-shrink-0" title="Public - Anyone can view this tournament" />
             ) : (
-              <Lock className="h-4 w-4 text-gray-500 flex-shrink-0" title="Private" />
+              <Lock className="h-4 w-4 text-red-600 flex-shrink-0" title="Private - Only authorized users can view this tournament" />
             )}
           </CardTitle>
-          <CardDescription>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm">
-              <span className="flex items-center gap-1">
-                Created <Calendar className="h-3 w-3 flex-shrink-0" /> : 
-                
-                <span className="truncate">{new Date(tournament.created).toLocaleDateString()}</span>
-              </span>
-              <span className="flex items-center gap-1">
-                <Users className="h-3 w-3 flex-shrink-0" />
-                <span className="truncate">{tournament.status}</span>
-              </span>
-              
+          
+          <div className="space-y-3">
+            {/* Games being played */}
+            <div className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Games: </span>
+              {tournament.settings?.gameTypes?.length > 0 ? (
+                <span>{tournament.settings.gameTypes.map(gt => gt.name).join(', ')}</span>
+              ) : (
+                <span className="text-muted-foreground/70">No games configured</span>
+              )}
             </div>
-          </CardDescription>
+            
+            {/* Teams and Players */}
+            <div className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Format: </span>
+              <span>
+                {tournament.settings?.teams || 0} teams, {tournament.settings?.playersPerTeam || 0} players each
+              </span>
+            </div>
+            
+            {/* Created date */}
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              <Calendar className="h-3 w-3 flex-shrink-0" />
+              <span>Created {new Date(tournament.created).toLocaleDateString()}</span>
+            </div>
+            
+            {/* Status - Final row */}
+            <div className="flex items-center gap-1 pt-1">
+              <Users className="h-3 w-3 flex-shrink-0" />
+              <span className="text-sm font-medium">
+                {tournament.status === 'setup' ? 'Setup' :
+                 tournament.status === 'active' ? 'Active' :
+                 tournament.status === 'completed' ? 'Complete' :
+                 tournament.status}
+              </span>
+            </div>
+          </div>
         </CardHeader>
-        
       </div>
     </Card>
   )
@@ -301,10 +273,9 @@ export default function TournamentList() {
                 <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {tournaments.filter(t => t.section === 'mine').slice(0, 5).map((tournament) => (
                     <TournamentCard 
-                      key={tournament.id} 
-                      tournament={tournament} 
-                      navigate={navigate} 
-                      showAdminControls={true} 
+                    key={tournament.id} 
+                    tournament={tournament} 
+                    navigate={navigate} 
                     />
                   ))}
                 </div>
@@ -323,10 +294,9 @@ export default function TournamentList() {
                 <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {tournaments.filter(t => t.section === 'public').slice(0, 5).map((tournament) => (
                     <TournamentCard 
-                      key={tournament.id} 
-                      tournament={tournament} 
-                      navigate={navigate} 
-                      showAdminControls={false} 
+                    key={tournament.id} 
+                    tournament={tournament} 
+                    navigate={navigate} 
                     />
                   ))}
                 </div>

@@ -63,6 +63,10 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
     return baseSettings
   })
   
+  // State for tournament name editing
+  const [tournamentName, setTournamentName] = useState(tournament.name)
+  const [isEditingName, setIsEditingName] = useState(false)
+  
   const [isSaving, setIsSaving] = useState(false)
   const [validation, setValidation] = useState(null)
   const [showPreview, setShowPreview] = useState(false)
@@ -133,6 +137,7 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
       setIsSaving(true)
       const updatedTournament = {
         ...tournament,
+        name: tournamentName,
         settings
       }
       
@@ -159,6 +164,7 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
       setIsSaving(true)
       const updatedTournament = {
         ...tournament,
+        name: tournamentName,
         settings
       }
       
@@ -196,6 +202,7 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
       // Save current settings first
       const updatedTournament = {
         ...tournament,
+        name: tournamentName,
         settings
       }
       await api.updateTournament(tournament.id, updatedTournament)
@@ -399,6 +406,64 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
   
   return (
     <div className="space-y-6">
+      {/* Tournament Name */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Tournament Name</CardTitle>
+          <CardDescription>
+            {canEdit ? 'Give your tournament a memorable name' : 'Tournament name (read-only)'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {canEdit ? (
+            <div className="flex gap-2">
+              <Input
+                value={tournamentName}
+                onChange={(e) => setTournamentName(e.target.value)}
+                placeholder="Enter tournament name"
+                maxLength={100}
+                className="flex-1"
+              />
+              <Button
+                onClick={async () => {
+                  if (tournamentName.trim() && tournamentName !== tournament.name) {
+                    try {
+                      setIsSaving(true)
+                      const updatedTournament = {
+                        ...tournament,
+                        name: tournamentName.trim()
+                      }
+                      await api.updateTournament(tournament.id, updatedTournament)
+                      tournamentStore.setTournament(updatedTournament)
+                      toast({
+                        title: 'Success',
+                        description: 'Tournament name updated'
+                      })
+                    } catch (error) {
+                      toast({
+                        title: 'Error',
+                        description: 'Failed to update tournament name',
+                        variant: 'destructive'
+                      })
+                    } finally {
+                      setIsSaving(false)
+                    }
+                  }
+                }}
+                disabled={!tournamentName.trim() || tournamentName === tournament.name || isSaving}
+                variant="outline"
+              >
+                {isSaving ? 'Saving...' : 'Update'}
+              </Button>
+            </div>
+          ) : (
+            <div className="p-3 bg-muted rounded-md font-medium">
+              {tournament.name}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      
       {/* Basic Settings */}
       <Card>
         <CardHeader>
@@ -439,7 +504,7 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
                   onChange={(e) => handleSettingChange('playersPerTeam', e.target.value)}
                   disabled={!canEdit}
                 />
-                <p className="mt-1 text-sm text-muted-foreground">4-10 players (any number allowed)</p>
+                <p className="mt-1 text-sm text-muted-foreground">4-10 players</p>
               </div>
             </div>
           </div>
