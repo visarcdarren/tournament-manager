@@ -121,6 +121,20 @@ export default function TournamentView({ tournamentId }) {
           expiresAt: data.expiresAt 
         })
       },
+      'tournament-reset': (data) => {
+        tournamentStore.setTournament(data)
+        toast({
+          title: 'Tournament Reset',
+          description: 'Tournament has been reset to setup state',
+        })
+      },
+      'tournament-rescheduled': (data) => {
+        tournamentStore.setTournament(data)
+        toast({
+          title: 'Schedule Regenerated',
+          description: 'Tournament schedule has been regenerated with new matchups',
+        })
+      },
       'tournament-deleted': (data) => {
         toast({
           title: 'Tournament Deleted',
@@ -396,7 +410,7 @@ export default function TournamentView({ tournamentId }) {
             </TabsContent>
             
             <TabsContent value="schedule">
-              <ScheduleViewer tournament={tournament} />
+              <ScheduleViewer tournament={tournament} isAdmin={isAdmin} />
             </TabsContent>
             
             <TabsContent value="live">
