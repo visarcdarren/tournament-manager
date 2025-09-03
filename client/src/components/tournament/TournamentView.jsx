@@ -300,7 +300,7 @@ export default function TournamentView({ tournamentId }) {
               {isAdmin && (
                 <>
                   {tournament.isPublic && (
-                    <Button variant="outline" onClick={handleShare} className="text-blue-600 border-blue-200 hover:bg-blue-50 w-full sm:w-auto">
+                    <Button variant="outline" onClick={handleShare} className="w-full sm:w-auto">
                       <Share className="mr-2 h-4 w-4" />
                       <span className="hidden sm:inline">Share</span>
                     </Button>

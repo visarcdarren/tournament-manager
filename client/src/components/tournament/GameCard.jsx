@@ -147,7 +147,7 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon, 
               className={`truncate ${
                 (game.result === 'team1-win' || game.result === 'player1-win') 
                   ? 'bg-green-600 hover:bg-green-700 text-white border-green-600' 
-                  : 'hover:bg-accent hover:text-accent-foreground'
+                  : ''
               }`}
             >
               <span className="truncate">{team1Name} Wins</span>
@@ -160,7 +160,7 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon, 
               className={`${
                 game.result === 'draw' 
                   ? 'bg-green-600 hover:bg-green-700 text-white border-green-600' 
-                  : 'hover:bg-accent hover:text-accent-foreground'
+                  : ''
               }`}
             >
               Draw
@@ -173,7 +173,7 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon, 
               className={`truncate ${
                 (game.result === 'team2-win' || game.result === 'player2-win') 
                   ? 'bg-green-600 hover:bg-green-700 text-white border-green-600' 
-                  : 'hover:bg-accent hover:text-accent-foreground'
+                  : ''
               }`}
             >
               <span className="truncate">{team2Name} Wins</span>

@@ -628,7 +628,7 @@ export default function TeamManagement({ tournament, isAdmin }) {
                   onClick={previewSchedule}
                   disabled={!isSetupComplete || isGeneratingPreview}
                   variant="outline"
-                  className={isSetupComplete ? "border-blue-200 text-blue-700 hover:bg-blue-50" : "opacity-50"}
+                  className={isSetupComplete ? "" : "opacity-50"}
                 >
                   <Eye className="mr-2 h-4 w-4" />
                   {isGeneratingPreview ? 'Generating...' : 'Preview Schedule'}

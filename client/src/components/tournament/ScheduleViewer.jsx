@@ -225,7 +225,7 @@ export default function ScheduleViewer({ tournament, isAdmin }) {
               onClick={() => setShowRescheduleDialog(true)} 
               variant="outline" 
               size="sm" 
-              className="w-full sm:w-auto border-blue-200 text-blue-700 hover:bg-blue-50"
+              className="w-full sm:w-auto"
               disabled={isRescheduling}
             >
               <Shuffle className="mr-2 h-4 w-4" />
@@ -1001,7 +1001,7 @@ export default function ScheduleViewer({ tournament, isAdmin }) {
             <Button
               onClick={handleReschedule}
               disabled={isRescheduling}
-              className="bg-blue-600 hover:bg-blue-700"
+              variant="default"
             >
               {isRescheduling ? 'Regenerating...' : 'Regenerate Schedule'}
             </Button>

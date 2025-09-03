@@ -624,7 +624,6 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
                   onClick={previewSchedule}
                   disabled={isGeneratingPreview}
                   variant="outline"
-                  className="border-blue-200 text-blue-700 hover:bg-blue-50"
                 >
                   <Eye className="mr-2 h-4 w-4" />
                   {isGeneratingPreview ? 'Generating...' : 'Preview Schedule'}
