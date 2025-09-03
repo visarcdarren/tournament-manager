@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/toaster'
 import TournamentList from '@/components/tournament/TournamentList'
 import TournamentView from '@/components/tournament/TournamentView'
 import useDeviceStore from '@/stores/deviceStore'
+import PWAInstallPrompt from '@/components/common/PWAInstallPrompt'
 
 function App() {
   const [currentView, setCurrentView] = useState('list')
@@ -119,6 +120,7 @@ function App() {
           <TournamentView tournamentId={tournamentId} />
         )}
       </div>
+      <PWAInstallPrompt />
       <Toaster />
     </>
   )
