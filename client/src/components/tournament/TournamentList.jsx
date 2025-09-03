@@ -193,9 +193,9 @@ export default function TournamentList() {
         <div className="mb-6 sm:mb-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold">Visarc Tournament Manager</h1>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold">TeamUp!</h1>
               <p className="text-sm sm:text-base text-muted-foreground">
-                Tournament management for game parties
+                Tournament management from Visarc
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
