@@ -258,7 +258,7 @@ export default function ScheduleViewer({ tournament, isAdmin }) {
                 onClick={() => setSelectedRound(index + 1)}
                 className={`min-w-0 px-2 sm:px-3 ${
                   tournament.currentState?.status === 'active' && index + 1 === currentRound ? 
-                  'bg-green-600 hover:bg-green-700 border-green-600' : ''
+                  'bg-green-600 text-white border-green-600 hover:bg-green-700' : ''
                 }`}
               >
                 <span className="text-xs sm:text-sm">
