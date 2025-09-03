@@ -50,7 +50,7 @@ In the **Setup** tab:
 
 **Basic Configuration:**
 - **Teams**: Set number of teams (2-10)
-- **Players per Team**: Must be even number (4-10)
+- **Players per Team**: 4-10 players per team
 - **Rounds**: How many rounds to play
 - **Timer**: Enable/disable and set duration (optional)
 - **Scoring**: Points for Win/Draw/Loss

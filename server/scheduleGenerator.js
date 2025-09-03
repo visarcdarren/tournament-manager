@@ -13,6 +13,8 @@ export function migrateTournamentToV2(tournament) {
     creatorDeviceId: tournament.adminDeviceId || tournament.creatorDeviceId,
     creatorName: tournament.devices?.[0]?.name || 'Tournament Creator',
     isPublic: tournament.isPublic || false,
+    // Ensure playerPool exists
+    playerPool: tournament.playerPool || [],
     settings: {
       ...tournament.settings,
       // Convert old equipment to game types if needed
@@ -117,10 +119,20 @@ export function validateTournamentSetup(tournament) {
     warnings.push(`Some game types may not be fully utilized. Consider reducing stations or changing team sizes.`);
   }
   
-  // Check partner mode for multi-player games
+  // Check partner mode for multi-player games and odd team size impacts
   for (const gameType of gameTypes) {
     if (gameType.playersPerTeam > 1 && !gameType.partnerMode) {
       warnings.push(`${gameType.name} is ${gameType.playersPerTeam}v${gameType.playersPerTeam} but partner mode not set. Defaulting to 'rotating'.`);
+    }
+    
+    // Check for odd team sizes that may cause uneven participation
+    if (gameType.playersPerTeam > 1) {
+      const remainder = playersPerTeam % gameType.playersPerTeam;
+      if (remainder > 0) {
+        const leftoverPlayers = remainder;
+        const maxPartnerships = Math.floor(playersPerTeam / gameType.playersPerTeam);
+        warnings.push(`${gameType.name}: Each team has ${playersPerTeam} players, but game requires groups of ${gameType.playersPerTeam}. ${leftoverPlayers} player(s) per team will rotate sitting out.`);
+      }
     }
   }
   
@@ -142,37 +154,113 @@ export function validateTournamentSetup(tournament) {
 function generatePartnerships(team, gameType, round) {
   const activePlayers = team.players.filter(p => p.status === 'active');
   const partnerships = [];
+  const playersPerPartnership = gameType.playersPerTeam;
   
   if (gameType.partnerMode === 'fixed') {
     // Fixed partnerships - pair players once and keep them together
     // Use deterministic pairing based on player order
-    for (let i = 0; i < activePlayers.length; i += gameType.playersPerTeam) {
+    for (let i = 0; i < activePlayers.length; i += playersPerPartnership) {
       const partnership = [];
-      for (let j = 0; j < gameType.playersPerTeam && i + j < activePlayers.length; j++) {
+      for (let j = 0; j < playersPerPartnership && i + j < activePlayers.length; j++) {
         partnership.push(activePlayers[i + j]);
       }
-      if (partnership.length === gameType.playersPerTeam) {
+      if (partnership.length === playersPerPartnership) {
         partnerships.push(partnership);
       }
     }
   } else {
-    // Rotating partnerships - create new pairs each round
-    // Shuffle based on round number for variety
-    const shuffled = [...activePlayers].sort((a, b) => {
+    // Rotating partnerships - create new pairs each round with leftover rotation
+    // Calculate rotation offset to ensure different players sit out each round
+    const remainder = activePlayers.length % playersPerPartnership;
+    const rotationOffset = remainder > 0 ? ((round - 1) * remainder) % activePlayers.length : 0;
+    
+    // Apply rotation to ensure fair distribution of who sits out
+    const rotatedPlayers = [
+      ...activePlayers.slice(rotationOffset),
+      ...activePlayers.slice(0, rotationOffset)
+    ];
+    
+    // Shuffle within the rotated list for variety, but maintain rotation fairness
+    const shuffled = [...rotatedPlayers].sort((a, b) => {
       const seedA = `${round}-${a.id}`.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
       const seedB = `${round}-${b.id}`.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
       return seedA - seedB;
     });
     
-    for (let i = 0; i < shuffled.length; i += gameType.playersPerTeam) {
+    for (let i = 0; i < shuffled.length; i += playersPerPartnership) {
       const partnership = [];
-      for (let j = 0; j < gameType.playersPerTeam && i + j < shuffled.length; j++) {
+      for (let j = 0; j < playersPerPartnership && i + j < shuffled.length; j++) {
         partnership.push(shuffled[i + j]);
       }
-      if (partnership.length === gameType.playersPerTeam) {
+      if (partnership.length === playersPerPartnership) {
         partnerships.push(partnership);
       }
     }
+  }
+  
+  return partnerships;
+}
+
+// Enhanced partnership generation that considers sit-out fairness
+function generatePartnershipsWithTracker(team, gameType, round, tracker) {
+  const activePlayers = team.players.filter(p => p.status === 'active');
+  const partnerships = [];
+  const playersPerPartnership = gameType.playersPerTeam;
+  
+  if (gameType.partnerMode === 'fixed') {
+    // Fixed partnerships - pair players once and keep them together
+    // Use deterministic pairing based on player order
+    for (let i = 0; i < activePlayers.length; i += playersPerPartnership) {
+      const partnership = [];
+      for (let j = 0; j < playersPerPartnership && i + j < activePlayers.length; j++) {
+        partnership.push(activePlayers[i + j]);
+      }
+      if (partnership.length === playersPerPartnership) {
+        partnerships.push(partnership);
+      }
+    }
+    
+    // Record leftover players as sitting out
+    const usedPlayers = new Set(partnerships.flat().map(p => p.id));
+    activePlayers.forEach(player => {
+      if (!usedPlayers.has(player.id)) {
+        tracker.recordSitOut(player.id);
+      }
+    });
+  } else {
+    // Rotating partnerships - prioritize players who have sat out the most
+    // Sort players by sit-out count (ascending) to prioritize those who have sat out most
+    const playersWithSitOutCount = activePlayers.map(player => ({
+      ...player,
+      sitOutCount: tracker.getSitOutCount(player.id)
+    })).sort((a, b) => {
+      // Primary: sit-out count (ascending - fewer sit-outs first)
+      if (a.sitOutCount !== b.sitOutCount) {
+        return a.sitOutCount - b.sitOutCount;
+      }
+      // Secondary: add some round-based variety
+      const seedA = `${round}-${a.id}`.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      const seedB = `${round}-${b.id}`.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      return seedA - seedB;
+    });
+    
+    for (let i = 0; i < playersWithSitOutCount.length; i += playersPerPartnership) {
+      const partnership = [];
+      for (let j = 0; j < playersPerPartnership && i + j < playersWithSitOutCount.length; j++) {
+        partnership.push(playersWithSitOutCount[i + j]);
+      }
+      if (partnership.length === playersPerPartnership) {
+        partnerships.push(partnership);
+      }
+    }
+    
+    // Record leftover players as sitting out
+    const usedPlayers = new Set(partnerships.flat().map(p => p.id));
+    playersWithSitOutCount.forEach(player => {
+      if (!usedPlayers.has(player.id)) {
+        tracker.recordSitOut(player.id);
+      }
+    });
   }
   
   return partnerships;
@@ -186,6 +274,7 @@ class PlayerTracker {
     this.restCount = new Map(); // playerId -> number of rest periods
     this.gameCount = new Map(); // playerId -> number of games played
     this.lastActivity = new Map(); // playerId -> last game type played
+    this.sitOutCount = new Map(); // playerId -> number of times sat out due to odd team sizes
   }
   
   isAvailable(playerId) {
@@ -228,6 +317,14 @@ class PlayerTracker {
   
   getGameCount(playerId) {
     return this.gameCount.get(playerId) || 0;
+  }
+  
+  getSitOutCount(playerId) {
+    return this.sitOutCount.get(playerId) || 0;
+  }
+  
+  recordSitOut(playerId) {
+    this.sitOutCount.set(playerId, (this.sitOutCount.get(playerId) || 0) + 1);
   }
   
   recordRest(playerId) {
@@ -364,15 +461,15 @@ function findBestMatchup(teams, station, tracker, roundAssignments, round) {
       const team2 = availableTeams[j];
       
       // Generate possible player groups for each team
-      const team1Partnerships = generatePartnerships(team1, { 
+      const team1Partnerships = generatePartnershipsWithTracker(team1, { 
         playersPerTeam: station.playersPerTeam,
         partnerMode: station.partnerMode
-      }, round);
+      }, round, tracker);
       
-      const team2Partnerships = generatePartnerships(team2, { 
+      const team2Partnerships = generatePartnershipsWithTracker(team2, { 
         playersPerTeam: station.playersPerTeam,
         partnerMode: station.partnerMode
-      }, round);
+      }, round, tracker);
       
       // Find best partnership combination
       for (const team1Players of team1Partnerships) {

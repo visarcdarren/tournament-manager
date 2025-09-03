@@ -99,7 +99,7 @@ The application will be available at `http://localhost:5173`
 1. Click "New Tournament" on the home screen
 2. Configure basic settings:
    - Number of teams (2-10)
-   - Players per team (4-10, must be even)
+   - Players per team (4-10)
    - Number of rounds
    - Optional timer settings
    - Scoring system
