@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Eye, Download, Trash2, Calendar, Globe, Lock, Share, User } from 'lucide-react'
+import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Eye, Download, Trash2, Calendar, Globe, Lock, Share, User, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -22,6 +22,7 @@ import Leaderboard from './Leaderboard'
 import CompletionScreen from './CompletionScreen'
 import PlayerPoolManager from './PlayerPoolManager'
 import ScheduleViewer from './ScheduleViewer'
+import DevicePermissions from './DevicePermissions'
 import { getCurrentRound, isTournamentComplete } from '@/utils/tournament'
 
 export default function TournamentView({ tournamentId }) {
@@ -86,7 +87,7 @@ export default function TournamentView({ tournamentId }) {
       tournamentStore.setTournament(data)
       tournamentStore.setUserRole(data.userRole || 'VIEWER')
       
-      // Role is now either 'CREATOR' or 'VIEWER'
+      // Role is now 'ADMIN', 'SCORER', or 'VIEWER'
     } catch (error) {
       toast({
         title: 'Error',
@@ -118,6 +119,20 @@ export default function TournamentView({ tournamentId }) {
         tournamentStore.updateTimerStatus(data.round, { 
           status: 'running',
           expiresAt: data.expiresAt 
+        })
+      },
+      'tournament-reset': (data) => {
+        tournamentStore.setTournament(data)
+        toast({
+          title: 'Tournament Reset',
+          description: 'Tournament has been reset to setup state',
+        })
+      },
+      'tournament-rescheduled': (data) => {
+        tournamentStore.setTournament(data)
+        toast({
+          title: 'Schedule Regenerated',
+          description: 'Tournament schedule has been regenerated with new matchups',
         })
       },
       'tournament-deleted': (data) => {
@@ -190,7 +205,9 @@ export default function TournamentView({ tournamentId }) {
     return null
   }
   
-  const isCreator = userRole === 'CREATOR'
+  const isAdmin = userRole === 'ADMIN'
+  const isScorer = userRole === 'SCORER' || userRole === 'ADMIN'
+  const isOriginalAdmin = tournament.isOriginalAdmin
   const currentRound = getCurrentRound(tournament)
   const isComplete = isTournamentComplete(tournament)
   
@@ -268,7 +285,7 @@ export default function TournamentView({ tournamentId }) {
                 <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Eye className="h-3 w-3 flex-shrink-0" />
-                    {isCreator ? 'Creator' : 'Viewer'}
+                    {isAdmin ? (isOriginalAdmin ? 'Original Admin' : 'Admin') : (userRole === 'SCORER' ? 'Scorer' : 'Viewer')}
                   </span>
                   {tournament.currentState.status === 'active' && (
                     <span className="flex items-center gap-1">
@@ -280,10 +297,10 @@ export default function TournamentView({ tournamentId }) {
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-              {isCreator && (
+              {isAdmin && (
                 <>
                   {tournament.isPublic && (
-                    <Button variant="outline" onClick={handleShare} className="text-blue-600 border-blue-200 hover:bg-blue-50 w-full sm:w-auto">
+                    <Button variant="outline" onClick={handleShare} className="w-full sm:w-auto">
                       <Share className="mr-2 h-4 w-4" />
                       <span className="hidden sm:inline">Share</span>
                     </Button>
@@ -332,16 +349,16 @@ export default function TournamentView({ tournamentId }) {
             manualTabChangeRef.current = true
             setActiveTab(value)
           }}>
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 h-auto">
-              <TabsTrigger value="setup" disabled={!isCreator} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+            <TabsList className="grid w-full grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 h-auto">
+              <TabsTrigger value="setup" disabled={!isAdmin} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
                 <Settings className="h-4 w-4 flex-shrink-0" />
                 <span className="text-xs sm:text-sm">Setup</span>
               </TabsTrigger>
-              <TabsTrigger value="players" disabled={!isCreator} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+              <TabsTrigger value="players" disabled={!isAdmin} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
                 <User className="h-4 w-4 flex-shrink-0" />
                 <span className="text-xs sm:text-sm">Players</span>
               </TabsTrigger>
-              <TabsTrigger value="teams" disabled={!isCreator} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+              <TabsTrigger value="teams" disabled={!isAdmin} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
                 <Users className="h-4 w-4 flex-shrink-0" />
                 <span className="text-xs sm:text-sm">Teams</span>
               </TabsTrigger>
@@ -353,16 +370,23 @@ export default function TournamentView({ tournamentId }) {
                 <Play className="h-4 w-4 flex-shrink-0" />
                 <span className="text-xs sm:text-sm">Live</span>
               </TabsTrigger>
-              <TabsTrigger value="leaderboard" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4 col-span-2 sm:col-span-1">
+              <TabsTrigger value="leaderboard" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
                 <Trophy className="h-4 w-4 flex-shrink-0" />
                 <span className="text-xs sm:text-sm">Leaderboard</span>
               </TabsTrigger>
+              {isAdmin && (
+                <TabsTrigger value="devices" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                  <Shield className="h-4 w-4 flex-shrink-0" />
+                  <span className="text-xs sm:text-sm">Devices</span>
+                </TabsTrigger>
+              )}
             </TabsList>
             
             <TabsContent value="setup">
               <TournamentSetup 
                 tournament={tournament} 
-                isAdmin={isCreator} 
+                isAdmin={isAdmin}
+                isOriginalAdmin={isOriginalAdmin}
                 onNavigateToPlayers={() => {
                   manualTabChangeRef.current = true
                   setActiveTab('players')
@@ -373,7 +397,7 @@ export default function TournamentView({ tournamentId }) {
             <TabsContent value="players">
               <PlayerPoolManager 
                 tournament={tournament} 
-                isAdmin={isCreator}
+                isAdmin={isAdmin}
                 onNavigateToTeams={() => {
                   manualTabChangeRef.current = true
                   setActiveTab('teams')
@@ -382,25 +406,34 @@ export default function TournamentView({ tournamentId }) {
             </TabsContent>
             
             <TabsContent value="teams">
-              <TeamManagement tournament={tournament} isAdmin={isCreator} />
+              <TeamManagement tournament={tournament} isAdmin={isAdmin} />
             </TabsContent>
             
             <TabsContent value="schedule">
-              <ScheduleViewer tournament={tournament} />
+              <ScheduleViewer tournament={tournament} isAdmin={isAdmin} />
             </TabsContent>
             
             <TabsContent value="live">
               <LiveTournament 
                 tournament={tournament} 
                 currentRound={currentRound}
-                isAdmin={isCreator}
-                isScorer={isCreator}
+                isAdmin={isAdmin}
+                isScorer={isScorer}
               />
             </TabsContent>
             
             <TabsContent value="leaderboard">
               <Leaderboard tournament={tournament} />
             </TabsContent>
+            
+            {isAdmin && (
+              <TabsContent value="devices">
+                <DevicePermissions 
+                  tournament={tournament} 
+                  isOriginalAdmin={isOriginalAdmin}
+                />
+              </TabsContent>
+            )}
           </Tabs>
         )}
       </div>

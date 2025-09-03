@@ -628,7 +628,7 @@ export default function TeamManagement({ tournament, isAdmin }) {
                   onClick={previewSchedule}
                   disabled={!isSetupComplete || isGeneratingPreview}
                   variant="outline"
-                  className={isSetupComplete ? "border-blue-200 text-blue-700 hover:bg-blue-50" : "opacity-50"}
+                  className={isSetupComplete ? "" : "opacity-50"}
                 >
                   <Eye className="mr-2 h-4 w-4" />
                   {isGeneratingPreview ? 'Generating...' : 'Preview Schedule'}
@@ -637,7 +637,7 @@ export default function TeamManagement({ tournament, isAdmin }) {
                   onClick={startTournament}
                   disabled={!isSetupComplete || isStarting}
                   variant={isSetupComplete ? "default" : "outline"}
-                  className={isSetupComplete ? "bg-green-600 hover:bg-green-700" : "opacity-50"}
+                  className={isSetupComplete ? "bg-green-600 text-white border-green-600 hover:bg-green-700" : "opacity-50"}
                 >
                   <Play className="mr-2 h-4 w-4" />
                   {isStarting ? 'Starting...' : 'Start Tournament'}
@@ -694,7 +694,7 @@ export default function TeamManagement({ tournament, isAdmin }) {
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100"
+                      className="h-8 w-8 text-green-600 hover:text-white hover:bg-green-600 border-green-600"
                       onClick={() => updateTeamName(team.id, team.name)}
                     >
                       <Check className="h-4 w-4" />
@@ -702,7 +702,7 @@ export default function TeamManagement({ tournament, isAdmin }) {
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-8 w-8 text-gray-600 hover:text-gray-700 hover:bg-gray-100"
+                      className="h-8 w-8 text-gray-600 hover:text-white hover:bg-gray-600 border-gray-600"
                       onClick={() => setEditingTeam(null)}
                     >
                       <X className="h-4 w-4" />
@@ -716,7 +716,7 @@ export default function TeamManagement({ tournament, isAdmin }) {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                          className="h-8 w-8 text-blue-600 hover:text-white hover:bg-blue-600 border-blue-600"
                           onClick={() => setEditingTeam(team.id)}
                         >
                           <Edit2 className="h-4 w-4" />
@@ -725,7 +725,7 @@ export default function TeamManagement({ tournament, isAdmin }) {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100"
+                            className="h-8 w-8 text-green-600 hover:text-white hover:bg-green-600 border-green-600"
                             onClick={() => randomlyAllocateToTeam(team)}
                             title="Randomly add players from pool"
                           >
@@ -735,7 +735,7 @@ export default function TeamManagement({ tournament, isAdmin }) {
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-100"
+                          className="h-8 w-8 text-red-600 hover:text-white hover:bg-red-600 border-red-600"
                           onClick={() => deleteTeam(team.id)}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -764,7 +764,7 @@ export default function TeamManagement({ tournament, isAdmin }) {
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-6 w-6 text-orange-600 hover:text-orange-700 hover:bg-orange-100"
+                        className="h-6 w-6 text-orange-600 hover:text-white hover:bg-orange-600 border-orange-600"
                         onClick={() => removePlayerFromTeam(team.id, player.id, true)}
                         title="Remove from team (move to pool)"
                       >
@@ -954,7 +954,7 @@ export default function TeamManagement({ tournament, isAdmin }) {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100"
+                            className="h-8 w-8 text-green-600 hover:text-white hover:bg-green-600 border-green-600"
                             onClick={() => updatePlayerName(selectedTeam.id, player.id, player.name)}
                           >
                             <Check className="h-4 w-4" />
@@ -962,7 +962,7 @@ export default function TeamManagement({ tournament, isAdmin }) {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-gray-600 hover:text-gray-700 hover:bg-gray-100"
+                            className="h-8 w-8 text-gray-600 hover:text-white hover:bg-gray-600 border-gray-600"
                             onClick={() => setEditingPlayer(null)}
                           >
                             <X className="h-4 w-4" />
@@ -976,7 +976,7 @@ export default function TeamManagement({ tournament, isAdmin }) {
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                                className="h-8 w-8 text-blue-600 hover:text-white hover:bg-blue-600 border-blue-600"
                                 onClick={() => setEditingPlayer(player.id)}
                                 title="Edit name"
                               >
@@ -985,7 +985,7 @@ export default function TeamManagement({ tournament, isAdmin }) {
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8 text-orange-600 hover:text-orange-700 hover:bg-orange-100"
+                                className="h-8 w-8 text-orange-600 hover:text-white hover:bg-orange-600 border-orange-600"
                                 onClick={() => removePlayerFromTeam(selectedTeam.id, player.id, true)}
                                 title="Move back to pool"
                               >
@@ -994,7 +994,7 @@ export default function TeamManagement({ tournament, isAdmin }) {
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-100"
+                                className="h-8 w-8 text-red-600 hover:text-white hover:bg-red-600 border-red-600"
                                 onClick={() => removePlayerFromTeam(selectedTeam.id, player.id, false)}
                                 title="Delete player"
                               >

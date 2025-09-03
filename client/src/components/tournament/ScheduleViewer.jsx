@@ -1,16 +1,24 @@
 import React, { useState, useEffect } from 'react'
-import { Calendar, Printer, MapPin, Users, Clock, ChevronRight, Trophy, Medal } from 'lucide-react'
+import { Calendar, Printer, MapPin, Users, Clock, ChevronRight, Trophy, Medal, Shuffle, AlertCircle } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { useToast } from '@/hooks/use-toast'
+import api from '@/utils/api'
+import useTournamentStore from '@/stores/tournamentStore'
 import { getCurrentRound } from '@/utils/tournament'
 
-export default function ScheduleViewer({ tournament }) {
+export default function ScheduleViewer({ tournament, isAdmin }) {
+  const { toast } = useToast()
+  const tournamentStore = useTournamentStore()
   // Initialize selectedRound to current round
   const currentRound = getCurrentRound(tournament)
   const [selectedRound, setSelectedRound] = useState(currentRound)
   const [selectedPlayer, setSelectedPlayer] = useState(null)
+  const [showRescheduleDialog, setShowRescheduleDialog] = useState(false)
+  const [isRescheduling, setIsRescheduling] = useState(false)
   
   // Update selectedRound when currentRound changes
   useEffect(() => {
@@ -18,6 +26,30 @@ export default function ScheduleViewer({ tournament }) {
       setSelectedRound(getCurrentRound(tournament))
     }
   }, [tournament])
+  
+  const handleReschedule = async () => {
+    try {
+      setIsRescheduling(true)
+      
+      const result = await api.rescheduleTournament(tournament.id)
+      
+      toast({
+        title: 'Schedule Regenerated',
+        description: result.message || 'Tournament schedule has been regenerated with new matchups.',
+      })
+      
+      setShowRescheduleDialog(false)
+      
+    } catch (error) {
+      toast({
+        title: 'Reschedule Failed',
+        description: error.message || 'Unable to regenerate schedule',
+        variant: 'destructive'
+      })
+    } finally {
+      setIsRescheduling(false)
+    }
+  }
   
   if (!tournament.schedule || tournament.schedule.length === 0) {
     return (
@@ -180,14 +212,31 @@ export default function ScheduleViewer({ tournament }) {
     return unique
   }, [])
   
+  // Check if tournament can be rescheduled (must be in setup state and admin)
+  const canReschedule = isAdmin && tournament.currentState?.status === 'setup'
+  
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl sm:text-2xl font-bold">Tournament Schedule</h2>
-        {/* <Button onClick={handlePrint} variant="outline" size="sm" className="w-full sm:w-auto">
-          <Printer className="mr-2 h-4 w-4" />
-          Print Schedule
-        </Button> */}
+        <div className="flex gap-2">
+          {canReschedule && (
+            <Button 
+              onClick={() => setShowRescheduleDialog(true)} 
+              variant="outline" 
+              size="sm" 
+              className="w-full sm:w-auto"
+              disabled={isRescheduling}
+            >
+              <Shuffle className="mr-2 h-4 w-4" />
+              {isRescheduling ? 'Regenerating...' : 'Reschedule'}
+            </Button>
+          )}
+          {/* <Button onClick={handlePrint} variant="outline" size="sm" className="w-full sm:w-auto">
+            <Printer className="mr-2 h-4 w-4" />
+            Print Schedule
+          </Button> */}
+        </div>
       </div>
       
       <Tabs defaultValue="rounds" className="space-y-4">
@@ -209,7 +258,7 @@ export default function ScheduleViewer({ tournament }) {
                 onClick={() => setSelectedRound(index + 1)}
                 className={`min-w-0 px-2 sm:px-3 ${
                   tournament.currentState?.status === 'active' && index + 1 === currentRound ? 
-                  'bg-green-600 hover:bg-green-700 border-green-600' : ''
+                  'bg-green-600 text-white border-green-600 hover:bg-green-700' : ''
                 }`}
               >
                 <span className="text-xs sm:text-sm">
@@ -288,9 +337,7 @@ export default function ScheduleViewer({ tournament }) {
                           <div className="flex items-center gap-2">
                             <MapPin className="h-4 w-4" />
                             <span>{game.stationName || game.station}</span>
-                            {game.gameTypeName && (
-                              <span className="text-xs text-muted-foreground">({game.gameTypeName})</span>
-                            )}
+                           
                           </div>
                           {result && (
                             <Badge 
@@ -915,6 +962,52 @@ export default function ScheduleViewer({ tournament }) {
           }
         }
       `}</style>
+      
+      {/* Reschedule Confirmation Dialog */}
+      <Dialog open={showRescheduleDialog} onOpenChange={setShowRescheduleDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shuffle className="h-5 w-5 text-blue-600" />
+              Regenerate Schedule
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to regenerate the tournament schedule? This will:
+              <ul className="mt-2 space-y-1 text-sm">
+                <li>• Create completely new matchups and game assignments</li>
+                <li>• Apply the enhanced scheduling algorithm with improved fairness</li>
+                <li>• Ensure better player rotation and pairing distribution</li>
+                <li>• Keep all current tournament settings and teams</li>
+              </ul>
+              <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-blue-800">
+                    <strong>Note:</strong> This will completely replace the current schedule.
+                    Only use this option before the tournament starts.
+                  </div>
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowRescheduleDialog(false)}
+              disabled={isRescheduling}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleReschedule}
+              disabled={isRescheduling}
+              variant="default"
+            >
+              {isRescheduling ? 'Regenerating...' : 'Regenerate Schedule'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

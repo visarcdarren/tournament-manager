@@ -78,9 +78,7 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon, 
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <span className="flex-shrink-0">{icon}</span>
             <span className="truncate font-medium">{game.stationName || game.station}</span>
-            {game.gameTypeName && (
-              <span className="text-xs text-muted-foreground hidden sm:inline">({game.gameTypeName})</span>
-            )}
+    
           </div>
           {game.result && <Check className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 flex-shrink-0" />}
         </CardTitle>
@@ -149,7 +147,7 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon, 
               className={`truncate ${
                 (game.result === 'team1-win' || game.result === 'player1-win') 
                   ? 'bg-green-600 hover:bg-green-700 text-white border-green-600' 
-                  : 'hover:bg-accent hover:text-accent-foreground'
+                  : ''
               }`}
             >
               <span className="truncate">{team1Name} Wins</span>
@@ -162,7 +160,7 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon, 
               className={`${
                 game.result === 'draw' 
                   ? 'bg-green-600 hover:bg-green-700 text-white border-green-600' 
-                  : 'hover:bg-accent hover:text-accent-foreground'
+                  : ''
               }`}
             >
               Draw
@@ -175,7 +173,7 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon, 
               className={`truncate ${
                 (game.result === 'team2-win' || game.result === 'player2-win') 
                   ? 'bg-green-600 hover:bg-green-700 text-white border-green-600' 
-                  : 'hover:bg-accent hover:text-accent-foreground'
+                  : ''
               }`}
             >
               <span className="truncate">{team2Name} Wins</span>

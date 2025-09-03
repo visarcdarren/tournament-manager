@@ -344,7 +344,7 @@ export default function PlayerPoolManager({ tournament, isAdmin, onNavigateToTea
                 {totalPlayersAvailable >= totalPlayersNeeded && onNavigateToTeams && (
                   <Button 
                     onClick={onNavigateToTeams}
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-green-600 text-white border-green-600 hover:bg-green-700"
                   >
                     <Users className="mr-2 h-4 w-4" />
                     Manage Teams
@@ -421,7 +421,7 @@ export default function PlayerPoolManager({ tournament, isAdmin, onNavigateToTea
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100"
+                          className="h-8 w-8 text-green-600 hover:text-white hover:bg-green-600 border-green-600"
                           onClick={() => updatePlayerName(player.id, player.name)}
                         >
                           <Check className="h-4 w-4" />
@@ -429,7 +429,7 @@ export default function PlayerPoolManager({ tournament, isAdmin, onNavigateToTea
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 text-gray-600 hover:text-gray-700 hover:bg-gray-100"
+                          className="h-8 w-8 text-gray-600 hover:text-white hover:bg-gray-600 border-gray-600"
                           onClick={() => setEditingPlayer(null)}
                         >
                           <X className="h-4 w-4" />
@@ -443,7 +443,7 @@ export default function PlayerPoolManager({ tournament, isAdmin, onNavigateToTea
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                              className="h-8 w-8 text-blue-600 hover:text-white hover:bg-blue-600 border-blue-600"
                               onClick={() => setEditingPlayer(player.id)}
                             >
                               <Edit2 className="h-4 w-4" />
@@ -451,7 +451,7 @@ export default function PlayerPoolManager({ tournament, isAdmin, onNavigateToTea
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-100"
+                              className="h-8 w-8 text-red-600 hover:text-white hover:bg-red-600 border-red-600"
                               onClick={() => deletePlayer(player.id)}
                             >
                               <Trash2 className="h-4 w-4" />
