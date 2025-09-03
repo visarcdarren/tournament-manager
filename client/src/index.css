@@ -126,6 +126,8 @@ body {
   /* Improve text readability */
   body {
     -webkit-text-size-adjust: 100%;
+    /* Prevent zoom on input focus */
+    font-size: 16px;
   }
   
   /* Better spacing for mobile */
@@ -136,6 +138,28 @@ body {
   /* Ensure cards don't get too narrow */
   .grid-cols-1 {
     min-width: 0;
+  }
+  
+  /* PWA-specific mobile optimizations */
+  input, textarea, select {
+    font-size: 16px; /* Prevent iOS zoom */
+  }
+  
+  /* Safe area insets for devices with notches */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .safe-left {
+    padding-left: env(safe-area-inset-left);
+  }
+  
+  .safe-right {
+    padding-right: env(safe-area-inset-right);
   }
 }
 

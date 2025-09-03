@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useNavigate } from '@/App'
 import api from '@/utils/api'
 import useDeviceStore from '@/stores/deviceStore'
+import MobileInstallBanner from '@/components/common/MobileInstallBanner'
 
 // Tournament card component for reuse
 function TournamentCard({ tournament, navigate, showOwnerControls }) {
@@ -231,14 +232,17 @@ export default function TournamentList() {
   
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {/* Mobile Install Banner */}
+      <MobileInstallBanner />
+      
       <div className="flex-1 p-3 sm:p-4">
         <div className="mx-auto max-w-6xl">
         <div className="mb-6 sm:mb-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold">Tournament Manager</h1>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold">Visarc Tournament Manager</h1>
               <p className="text-sm sm:text-base text-muted-foreground">
-                Tournament management for parties
+                Tournament management for game parties
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
