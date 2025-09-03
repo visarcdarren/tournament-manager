@@ -159,26 +159,9 @@ export default function TournamentList() {
         name: newTournamentName,
         settings: {
           teams: 4,
-          playersPerTeam: 6,
+          playersPerTeam: 2,
           gameTypes: [
-            {
-              id: 'shuffleboard',
-              name: 'Shuffleboard',
-              playersPerTeam: 1,
-              stations: [
-                { id: 'shuffleboard-1', name: 'Shuffleboard 1' },
-                { id: 'shuffleboard-2', name: 'Shuffleboard 2' }
-              ]
-            },
-            {
-              id: 'darts',
-              name: 'Darts',
-              playersPerTeam: 1,
-              stations: [
-                { id: 'darts-1', name: 'Darts 1' },
-                { id: 'darts-2', name: 'Darts 2' }
-              ]
-            }
+
           ],
           timer: {
             enabled: false,
