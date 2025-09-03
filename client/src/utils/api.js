@@ -208,6 +208,19 @@ class TournamentAPI {
     })
   }
   
+  // Tournament reset and reschedule
+  async resetTournament(id) {
+    return this.fetch(`/tournament/${id}/reset`, {
+      method: 'POST'
+    })
+  }
+  
+  async rescheduleTournament(id) {
+    return this.fetch(`/tournament/${id}/reschedule`, {
+      method: 'POST'
+    })
+  }
+  
   // SSE connection
   connectToEvents(tournamentId, handlers) {
     const deviceStore = useDeviceStore.getState()
