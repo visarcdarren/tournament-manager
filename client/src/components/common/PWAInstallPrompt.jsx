@@ -52,19 +52,20 @@ const PWAInstallPrompt = () => {
     setIsStandalone(standalone);
 
     // Show prompt if mobile, not standalone, and not recently dismissed
-    if (mobile && !standalone && !dismissed) {
+    if (!standalone && !dismissed) {
       // For iOS, show after a short delay since beforeinstallprompt isn't supported
       if (ios) {
         setTimeout(() => setShowPrompt(true), 3000);
       }
+      // For desktop, we'll rely on the beforeinstallprompt event
     }
 
-    // Listen for the beforeinstallprompt event (Android/Chrome)
+    // Listen for the beforeinstallprompt event (Android/Chrome/Desktop)
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
       
-      if (mobile && !standalone && !dismissed) {
+      if (!standalone && !dismissed) {
         setTimeout(() => setShowPrompt(true), 2000);
       }
     };
@@ -116,7 +117,7 @@ const PWAInstallPrompt = () => {
     localStorage.setItem('pwa-install-dismissed', tomorrow.toISOString());
   };
 
-  if (!showPrompt || !isMobile || isStandalone) {
+  if (!showPrompt || isStandalone) {
     return null;
   }
 
@@ -131,7 +132,9 @@ const PWAInstallPrompt = () => {
             </div>
             <div>
               <h3 className="font-semibold text-lg">Install Tournament Manager</h3>
-              <p className="text-sm text-muted-foreground">Add to your home screen</p>
+              <p className="text-sm text-muted-foreground">
+                {isMobile ? 'Add to your home screen' : 'Install as desktop app'}
+              </p>
             </div>
           </div>
           <button
@@ -163,7 +166,7 @@ const PWAInstallPrompt = () => {
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                <span>Perfect for tournament directors on the go</span>
+                <span>{isMobile ? 'Perfect for tournament directors on the go' : 'Quick access from your desktop or taskbar'}</span>
               </div>
             </div>
           </div>

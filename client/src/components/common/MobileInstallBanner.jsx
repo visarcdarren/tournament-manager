@@ -23,7 +23,7 @@ const MobileInstallBanner = () => {
   
   const isIOS = detectIOS();
   const isMobile = detectMobile();
-  const canPromptInstall = (isInstallable || isIOS) && isMobile;
+  const canPromptInstall = (isInstallable || isIOS);
 
   const install = async () => {
     if (!deferredPrompt) return false;
@@ -88,7 +88,7 @@ const MobileInstallBanner = () => {
                 Install Tournament Manager
               </h3>
               <p className="text-white/90 text-sm">
-                Get the full app experience on your device
+                {isMobile ? 'Get the full app experience on your device' : 'Get the full app experience on your desktop'}
               </p>
             </div>
           </div>
