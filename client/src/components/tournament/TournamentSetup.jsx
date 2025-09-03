@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react'
-import { Settings, Save, AlertCircle, Timer, TimerOff, Users, Calendar, Eye } from 'lucide-react'
+import { Settings, Save, AlertCircle, Timer, TimerOff, Users, Calendar, Eye, RotateCcw } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import api from '@/utils/api'
 import useTournamentStore from '@/stores/tournamentStore'
@@ -67,6 +67,8 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
   const [showPreview, setShowPreview] = useState(false)
   const [previewData, setPreviewData] = useState(null)
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
+  const [showResetDialog, setShowResetDialog] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
   
   const handleSettingChange = (field, value) => {
     setSettings(prev => ({
@@ -215,14 +217,63 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
     }
   }
   
+  const handleReset = async () => {
+    try {
+      setIsResetting(true)
+      
+      await api.resetTournament(tournament.id)
+      
+      toast({
+        title: 'Tournament Reset',
+        description: 'All results and progress have been cleared. Tournament returned to setup state.',
+      })
+      
+      setShowResetDialog(false)
+      
+    } catch (error) {
+      toast({
+        title: 'Reset Failed',
+        description: error.message || 'Unable to reset tournament',
+        variant: 'destructive'
+      })
+    } finally {
+      setIsResetting(false)
+    }
+  }
+  
   const canEdit = isAdmin && tournament.currentState.status === 'setup'
   const hasValidationErrors = validation && !validation.valid
+  
+  // Reset should be available when admin and tournament has started or has results
+  const canReset = isAdmin && tournament.schedule && tournament.schedule.length > 0 && (
+    tournament.currentState.status !== 'setup' || 
+    tournament.schedule.some(round => round.games.some(game => game.result !== null))
+  )
   
   // Calculate summary stats
   const totalStations = settings.gameTypes.reduce((sum, gt) => sum + gt.stations.length, 0)
   const totalPlayers = settings.teams * settings.playersPerTeam
-  const playersPerRound = Math.min(totalPlayers, totalStations * 2) // Assuming minimum 1v1
-  const restingPlayers = Math.max(0, totalPlayers - playersPerRound)
+  
+  // Calculate actual players per round based on game type requirements
+  const calculatePlayersPerRound = () => {
+    if (!settings.gameTypes || settings.gameTypes.length === 0) {
+      return { playersPerRound: 0, restingPlayers: totalPlayers }
+    }
+    
+    let totalPlayersInRound = 0
+    settings.gameTypes.forEach(gameType => {
+      const stationsForThisGame = gameType.stations?.length || 0
+      const playersPerStation = (gameType.playersPerTeam || 1) * 2 // 2 teams per game
+      totalPlayersInRound += stationsForThisGame * playersPerStation
+    })
+    
+    const actualPlayersPerRound = Math.min(totalPlayers, totalPlayersInRound)
+    const restingPlayers = Math.max(0, totalPlayers - actualPlayersPerRound)
+    
+    return { playersPerRound: actualPlayersPerRound, restingPlayers }
+  }
+  
+  const { playersPerRound, restingPlayers } = calculatePlayersPerRound()
   
   // Smart Analysis Function
   const analyzeSettings = () => {
@@ -233,18 +284,41 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
       return { issues }
     }
     
-    // Calculate how many players can actually play per round
-    const totalGamePositions = totalStations * 2 // Each station accommodates 2 players minimum
+    // Calculate how many players can actually play per round (using proper game type math)
+    let totalGamePositions = 0
+    settings.gameTypes.forEach(gameType => {
+      const stationsForThisGame = gameType.stations?.length || 0
+      const playersPerStation = (gameType.playersPerTeam || 1) * 2 // 2 teams per game
+      totalGamePositions += stationsForThisGame * playersPerStation
+    })
+    
     const playersWhoWillSitOut = Math.max(0, totalPlayers - totalGamePositions)
     
-    // Issue 1: Too many players for available game positions
+    // Issue 1: Game position vs player analysis (only show if significant)
     if (playersWhoWillSitOut > 0) {
       const percentageSittingOut = Math.round((playersWhoWillSitOut / totalPlayers) * 100)
-      issues.push({
-        type: 'warning',
-        title: `${playersWhoWillSitOut} player(s) will sit out each round`,
-        description: `You have ${totalPlayers} total players but only ${totalGamePositions} game positions available (${percentageSittingOut}% sitting out).`
-      })
+      
+      // Only show if more than a few players sitting out
+      if (playersWhoWillSitOut > 2 || percentageSittingOut > 15) {
+        issues.push({
+          type: 'warning',
+          title: `${playersWhoWillSitOut} player(s) will sit out each round`,
+          description: `You have ${totalPlayers} total players but only ${totalGamePositions} game positions available (${percentageSittingOut}% sitting out).`
+        })
+      }
+    } else if (totalGamePositions > totalPlayers) {
+      // More positions than players - stations will be unused
+      const unusedPositions = totalGamePositions - totalPlayers
+      const utilizationPercentage = Math.round((totalPlayers / totalGamePositions) * 100)
+      
+      // Only show if significantly under-utilized
+      if (utilizationPercentage < 80) {
+        issues.push({
+          type: 'info',
+          title: `${unusedPositions} game position(s) will be unused each round`,
+          description: `You have ${totalGamePositions} total game positions but only ${totalPlayers} players (${utilizationPercentage}% utilization). Consider reducing stations.`
+        })
+      }
     }
     
     // Issue 2: Tournament length
@@ -258,17 +332,7 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
       })
     }
     
-    // Issue 3: Many unused stations
-    if (totalStations > settings.teams) {
-      const unusedStations = totalStations - settings.teams
-      issues.push({
-        type: 'info', 
-        title: `${unusedStations} station(s) will be unused`,
-        description: `You have ${totalStations} stations but only ${settings.teams} teams. Some stations won't have games.`
-      })
-    }
-    
-    // Issue 4: Very short rounds
+    // Issue 3: Very short rounds
     if (settings.timer.enabled && settings.timer.duration < 10) {
       issues.push({
         type: 'warning',
@@ -277,7 +341,7 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
       })
     }
     
-    // Issue 5: Too many rounds
+    // Issue 4: Too many rounds
     if (settings.rounds > (settings.teams - 1) * 2) {
       issues.push({
         type: 'info',
@@ -497,68 +561,47 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Basic Stats */}
-          <div className="grid gap-2 text-sm">
-            <div>Total Players: {totalPlayers}</div>
-            <div>Total Stations: {totalStations}</div>
-            <div>Games per Round: {totalStations}</div>
-            <div>Players per Round: ~{playersPerRound} active, ~{restingPlayers} resting</div>
-            <div>Total Games: {settings.rounds * totalStations}</div>
-            {settings.timer.enabled && (
-              <div>Round Duration: {settings.timer.duration} minutes each</div>
+          {/* Summary Layout: 70% Basic Stats, 30% Setup Assistant */}
+          <div className="flex gap-6">
+            {/* Basic Stats - 70% width */}
+            <div className="flex-[0.7] space-y-2">
+              <h4 className="font-semibold text-base text-gray-800 mb-3">Basic Stats</h4>
+              <div className="grid gap-2 text-sm">
+                <div>Total Players: {totalPlayers}</div>
+                <div>Total Stations: {totalStations}</div>
+                <div>Games per Round: {totalStations}</div>
+                <div>Players per Round: ~{playersPerRound} active, ~{restingPlayers} resting</div>
+                <div>Total Games: {settings.rounds * totalStations}</div>
+                {settings.timer.enabled && (
+                  <div>Round Duration: {settings.timer.duration} minutes each</div>
+                )}
+              </div>
+            </div>
+            
+            {/* Setup Assistant - 30% width, only show if there are issues */}
+            {issues.length > 0 && (
+              <div className="flex-[0.3] space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <h4 className="font-semibold text-base flex items-center gap-2 text-gray-800">
+                  <AlertCircle className="h-5 w-5" />
+                  Setup Assistant
+                </h4>
+                <p className="text-sm text-gray-600 -mt-1">
+                  Observations about your configuration:
+                </p>
+                
+                {issues.map((issue, index) => (
+                  <div key={index} className={`space-y-1 ${
+                    issue.type === 'warning' ? 'text-amber-700' : 
+                    issue.type === 'info' ? 'text-blue-700' : 'text-gray-700'
+                  }`}>
+                    <div className="font-medium text-sm">{issue.title}</div>
+                    <div className="text-xs opacity-90">{issue.description}</div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
-          
-          {/* Smart Analysis */}
-          {issues.length > 0 && (
-            <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <h4 className="font-semibold text-base flex items-center gap-2 text-gray-800">
-                <AlertCircle className="h-5 w-5" />
-                🎯 Tournament Setup Assistant
-              </h4>
-              <p className="text-sm text-gray-600 -mt-1">
-                Here are some observations about your current configuration:
-              </p>
-              
-              {issues.map((issue, index) => (
-                <div key={index} className={`space-y-1 ${
-                  issue.type === 'warning' ? 'text-amber-700' : 
-                  issue.type === 'info' ? 'text-blue-700' : 'text-gray-700'
-                }`}>
-                  <div className="font-medium text-sm">{issue.title}</div>
-                  <div className="text-xs opacity-90">{issue.description}</div>
-                </div>
-              ))}
-            </div>
-          )}
-          
-          {/* Backend Validation Messages */}
-          {validation && (
-            <div className="space-y-2">
-              {validation.errors && validation.errors.length > 0 && (
-                <div className="space-y-1">
-                  {validation.errors.map((error, i) => (
-                    <div key={i} className="flex items-start gap-2 text-sm text-destructive">
-                      <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                      <span>{error}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {validation.warnings && validation.warnings.length > 0 && (
-                <div className="space-y-1">
-                  {validation.warnings.map((warning, i) => (
-                    <div key={i} className="flex items-start gap-2 text-sm text-amber-600">
-                      <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                      <span>{warning}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          
+
           {canEdit && (
             <div className="flex gap-2 flex-wrap">
               <Button 
@@ -592,6 +635,29 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
         </CardContent>
       </Card>
       
+      {/* Reset Tournament Section - Only show if tournament has started or has results */}
+      {canReset && (
+        <Card className="border-red-200">
+          <CardHeader>
+            <CardTitle className="text-red-700">Danger Zone</CardTitle>
+            <CardDescription>
+              Reset tournament progress and return to setup state. This will clear all game results but keep the schedule structure.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button 
+              variant="destructive"
+              onClick={() => setShowResetDialog(true)}
+              disabled={isResetting}
+              className="w-full sm:w-auto"
+            >
+              <RotateCcw className="mr-2 h-4 w-4" />
+              {isResetting ? 'Resetting...' : 'Reset Tournament Progress'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+      
       {/* Schedule Preview Dialog */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
         <DialogContent className="max-w-6xl max-h-[80vh] overflow-hidden flex flex-col">
@@ -607,10 +673,45 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
           <div className="flex-1 overflow-hidden">
             {previewData && (
               <div className="h-full overflow-auto pr-2">
-                <ScheduleViewer tournament={previewData} />
+                <ScheduleViewer tournament={previewData} isAdmin={false} />
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Reset Confirmation Dialog */}
+      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-red-700">Reset Tournament Progress</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to reset this tournament? This will:
+              <ul className="mt-2 space-y-1 text-sm">
+                <li>• Clear all game results and scores</li>
+                <li>• Reset tournament status to setup</li>
+                <li>• Keep the schedule structure (you can regenerate if needed)</li>
+                <li>• Reset round progress to the beginning</li>
+              </ul>
+              <strong className="block mt-3 text-red-600">This action cannot be undone.</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowResetDialog(false)}
+              disabled={isResetting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleReset}
+              disabled={isResetting}
+            >
+              {isResetting ? 'Resetting...' : 'Reset Tournament'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
