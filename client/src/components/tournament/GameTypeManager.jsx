@@ -289,8 +289,9 @@ export default function GameTypeManager({ gameTypes = [], onChange, teams = [] }
                     variant="ghost"
                     size="icon"
                     onClick={() => removeGameType(gameType.id)}
+                    className="h-8 w-8 text-red-600 hover:text-white hover:bg-red-600 border border-red-600 rounded-md flex items-center justify-center"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4" style={{ flexShrink: 0 }} />
                   </Button>
                 </div>
               </CardHeader>
@@ -301,19 +302,19 @@ export default function GameTypeManager({ gameTypes = [], onChange, teams = [] }
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-8 w-8"
+                      className="h-8 w-8 flex items-center justify-center"
                       onClick={() => updateStationCount(gameType.id, -1)}
                       disabled={gameType.stations.length <= 1}
                     >
-                      <Minus className="h-3 w-3" />
+                      <Minus className="h-3 w-3" style={{ flexShrink: 0 }} />
                     </Button>
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-8 w-8"
+                      className="h-8 w-8 flex items-center justify-center"
                       onClick={() => updateStationCount(gameType.id, 1)}
                     >
-                      <Plus className="h-3 w-3" />
+                      <Plus className="h-3 w-3" style={{ flexShrink: 0 }} />
                     </Button>
                   </div>
                 </div>

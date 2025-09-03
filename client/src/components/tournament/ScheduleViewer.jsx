@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Calendar, Printer, MapPin, Users, Clock, ChevronRight, Trophy, Medal, Shuffle, AlertCircle } from 'lucide-react'
+import { Calendar, Printer, MapPin, Users, Clock, ChevronRight, Trophy, Medal, Shuffle, AlertCircle, Play } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -10,7 +10,7 @@ import api from '@/utils/api'
 import useTournamentStore from '@/stores/tournamentStore'
 import { getCurrentRound } from '@/utils/tournament'
 
-export default function ScheduleViewer({ tournament, isAdmin }) {
+export default function ScheduleViewer({ tournament, isAdmin, onStartTournament }) {
   const { toast } = useToast()
   const tournamentStore = useTournamentStore()
   // Initialize selectedRound to current round
@@ -215,17 +215,32 @@ export default function ScheduleViewer({ tournament, isAdmin }) {
   // Check if tournament can be rescheduled (must be in setup state and admin)
   const canReschedule = isAdmin && tournament.currentState?.status === 'setup'
   
+  // Check if tournament can be started (setup state with schedule generated)
+  const canStart = isAdmin && tournament.currentState?.status === 'setup' && onStartTournament
+  
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl sm:text-2xl font-bold">Tournament Schedule</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
+          {/* Start Tournament Button - Primary CTA */}
+          {canStart && (
+            <Button 
+              onClick={onStartTournament}
+              size="sm" 
+              className="w-full sm:w-auto bg-green-600 text-white border-green-600 hover:bg-green-700 order-1 sm:order-2"
+            >
+              <Play className="mr-2 h-4 w-4" />
+              Start Tournament
+            </Button>
+          )}
+          
           {canReschedule && (
             <Button 
               onClick={() => setShowRescheduleDialog(true)} 
               variant="outline" 
               size="sm" 
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto order-2 sm:order-1"
               disabled={isRescheduling}
             >
               <Shuffle className="mr-2 h-4 w-4" />

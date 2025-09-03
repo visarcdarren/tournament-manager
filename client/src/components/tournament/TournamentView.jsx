@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Eye, Download, Trash2, Calendar, Globe, Lock, Share, User, Shield } from 'lucide-react'
+import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Eye, Download, Trash2, Calendar, Globe, Lock, Share, User, Shield, Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -35,6 +35,7 @@ export default function TournamentView({ tournamentId }) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showShareDialog, setShowShareDialog] = useState(false)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
   
   const { tournament, userRole, isLoading } = tournamentStore
   
@@ -211,6 +212,52 @@ export default function TournamentView({ tournamentId }) {
   const currentRound = getCurrentRound(tournament)
   const isComplete = isTournamentComplete(tournament)
   
+  // Determine tournament phase for mobile navigation
+  const isInSetupPhase = tournament.currentState?.status === 'setup' && (!tournament.schedule || tournament.schedule.length === 0)
+  
+  // Get mobile bottom tabs based on tournament state
+  const getMobileBottomTabs = () => {
+    if (isInSetupPhase) {
+      // Setup phase: Setup, Players, Teams
+      return [
+        { id: 'setup', icon: Settings, label: 'Setup', disabled: !isAdmin },
+        { id: 'players', icon: User, label: 'Players', disabled: !isAdmin },
+        { id: 'teams', icon: Users, label: 'Teams', disabled: !isAdmin }
+      ]
+    } else {
+      // Active/Running phase: Schedule, Live, Leaderboard
+      // Now that Schedule page has start button, we can show consistent nav
+      return [
+        { id: 'schedule', icon: Calendar, label: 'Schedule', disabled: !tournament.schedule || tournament.schedule.length === 0 },
+        { id: 'live', icon: Play, label: 'Live', disabled: tournament.currentState?.status !== 'active' },
+        { id: 'leaderboard', icon: Trophy, label: 'Leaderboard', disabled: false }
+      ]
+    }
+  }
+  
+  // Get hamburger menu items based on tournament state
+  const getHamburgerItems = () => {
+    if (isInSetupPhase) {
+      // Setup phase: Devices in hamburger
+      return isAdmin ? [
+        { id: 'devices', icon: Shield, label: 'Devices' }
+      ] : []
+    } else {
+      // Active/Running phase: Setup, Players, Teams, Devices in hamburger
+      // Now Teams is always in hamburger since it's not needed in bottom nav for start button
+      const items = []
+      if (isAdmin) {
+        items.push(
+          { id: 'setup', icon: Settings, label: 'Setup' },
+          { id: 'players', icon: User, label: 'Players' },
+          { id: 'teams', icon: Users, label: 'Teams' },
+          { id: 'devices', icon: Shield, label: 'Devices' }
+        )
+      }
+      return items
+    }
+  }
+  
   const togglePublicStatus = async () => {
     const wasPublic = tournament.isPublic
     
@@ -237,6 +284,44 @@ export default function TournamentView({ tournamentId }) {
   }
   
   const shareUrl = `${window.location.origin}/tournament/${tournamentId}`
+  
+  // Start tournament function to pass to ScheduleViewer
+  const handleStartTournament = async () => {
+    try {
+      const validation = await api.validateTournament(tournament.id)
+      
+      if (!validation.valid) {
+        toast({
+          title: 'Cannot Start Tournament',
+          description: validation.errors.join(', '),
+          variant: 'destructive'
+        })
+        return
+      }
+      
+      if (validation.warnings && validation.warnings.length > 0) {
+        validation.warnings.forEach(warning => {
+          toast({
+            title: 'Warning',
+            description: warning
+          })
+        })
+      }
+      
+      const response = await api.generateSchedule(tournament.id)
+      
+      toast({
+        title: 'Tournament Started!',
+        description: `Started with ${response.schedule.length} rounds and ${response.schedule.reduce((sum, r) => sum + r.games.length, 0)} total games`
+      })
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to start tournament',
+        variant: 'destructive'
+      })
+    }
+  }
   
   const handleShare = async () => {
     const shareData = {
@@ -275,8 +360,30 @@ export default function TournamentView({ tournamentId }) {
         <div className="mx-auto max-w-7xl px-4 py-3 sm:py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-              <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0">
-                <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+              {/* Back button - larger on mobile */}
+              <button 
+                onClick={() => navigate('/')} 
+                className="h-12 w-12 sm:h-10 sm:w-10 flex-shrink-0 p-0 flex items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground transition-colors md:hidden"
+                style={{ minWidth: '48px', minHeight: '48px' }}
+              >
+                <ArrowLeft 
+                  style={{ 
+                    width: '28px', 
+                    height: '28px', 
+                    minWidth: '28px', 
+                    minHeight: '28px',
+                    flexShrink: 0 
+                  }} 
+                />
+              </button>
+              {/* Desktop back button */}
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => navigate('/')} 
+                className="hidden md:flex flex-shrink-0"
+              >
+                <ArrowLeft className="h-5 w-5" />
               </Button>
               <div className="min-w-0 flex-1">
                 <h1 className="text-lg sm:text-xl lg:text-2xl font-bold truncate">
@@ -295,61 +402,57 @@ export default function TournamentView({ tournamentId }) {
                   )}
                 </div>
               </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-              {isAdmin && (
+              {/* Mobile hamburger menu button */}
+              {getHamburgerItems().length > 0 && (
                 <>
-                  {tournament.isPublic && (
-                    <Button variant="outline" onClick={handleShare} className="w-full sm:w-auto">
-                      <Share className="mr-2 h-4 w-4" />
-                      <span className="hidden sm:inline">Share</span>
-                    </Button>
-                  )}
-                  <Button variant="outline" onClick={togglePublicStatus} className="w-full sm:w-auto">
-                    {tournament.isPublic ? (
-                      <>
-                        <Lock className="mr-2 h-4 w-4" />
-                        <span className="hidden sm:inline">Make Private</span>
-                        <span className="sm:hidden">Private</span>
-                      </>
-                    ) : (
-                      <>
-                        <Globe className="mr-2 h-4 w-4" />
-                        <span className="hidden sm:inline">Make Public</span>
-                        <span className="sm:hidden">Public</span>
-                      </>
-                    )}
+                  {/* Mobile hamburger - larger */}
+                  <button 
+                    onClick={() => setShowMobileMenu(true)}
+                    className="h-12 w-12 flex-shrink-0 md:hidden p-0 flex items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+                    style={{ minWidth: '48px', minHeight: '48px' }}
+                  >
+                    <Menu 
+                      style={{ 
+                        width: '28px', 
+                        height: '28px', 
+                        minWidth: '28px', 
+                        minHeight: '28px',
+                        flexShrink: 0 
+                      }} 
+                    />
+                  </button>
+                  {/* Desktop hamburger - normal size */}
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => setShowMobileMenu(true)}
+                    className="hidden md:flex flex-shrink-0"
+                  >
+                    <Menu className="h-4 w-4" />
                   </Button>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="icon" onClick={exportTournament} className="h-9 w-9 flex-shrink-0">
-                      <Download className="h-4 w-4 sm:h-5 sm:w-5" />
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      onClick={() => setShowDeleteDialog(true)}
-                      className="h-9 w-9 hover:bg-destructive hover:text-destructive-foreground flex-shrink-0"
-                    >
-                      <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
-                    </Button>
-                  </div>
                 </>
               )}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              {/* Header actions removed - moved to Setup tab */}
             </div>
           </div>
         </div>
       </div>
       
       {/* Main Content */}
-      <div className="mx-auto max-w-7xl p-4 sm:p-6">
+      <div className="mx-auto max-w-7xl p-4 sm:p-6 pb-20 md:pb-6">
         {isComplete && tournament.schedule?.length > 0 ? (
           <CompletionScreen tournament={tournament} />
         ) : (
           <Tabs value={activeTab} onValueChange={(value) => {
             manualTabChangeRef.current = true
             setActiveTab(value)
+            setShowMobileMenu(false) // Close mobile menu when tab changes
           }}>
-            <TabsList className="grid w-full grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 h-auto">
+            {/* Desktop Navigation - completely hidden on mobile */}
+            <div className="hidden md:block">
+              <TabsList className="w-full grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 h-auto">
               <TabsTrigger value="setup" disabled={!isAdmin} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
                 <Settings className="h-4 w-4 flex-shrink-0" />
                 <span className="text-xs sm:text-sm">Setup</span>
@@ -380,7 +483,8 @@ export default function TournamentView({ tournamentId }) {
                   <span className="text-xs sm:text-sm">Devices</span>
                 </TabsTrigger>
               )}
-            </TabsList>
+              </TabsList>
+            </div>
             
             <TabsContent value="setup">
               <TournamentSetup 
@@ -391,6 +495,10 @@ export default function TournamentView({ tournamentId }) {
                   manualTabChangeRef.current = true
                   setActiveTab('players')
                 }}
+                onTogglePublicStatus={togglePublicStatus}
+                onExportTournament={exportTournament}
+                onDeleteTournament={() => setShowDeleteDialog(true)}
+                onShare={handleShare}
               />
             </TabsContent>
             
@@ -410,7 +518,11 @@ export default function TournamentView({ tournamentId }) {
             </TabsContent>
             
             <TabsContent value="schedule">
-              <ScheduleViewer tournament={tournament} isAdmin={isAdmin} />
+              <ScheduleViewer 
+                tournament={tournament} 
+                isAdmin={isAdmin} 
+                onStartTournament={handleStartTournament}
+              />
             </TabsContent>
             
             <TabsContent value="live">
@@ -437,6 +549,78 @@ export default function TournamentView({ tournamentId }) {
           </Tabs>
         )}
       </div>
+      
+      {/* Mobile Bottom Navigation - only visible on mobile */}
+      <div className="fixed bottom-0 left-0 right-0 bg-card border-t md:hidden safe-bottom z-50">
+        <div className="grid grid-cols-3 h-16">
+          {getMobileBottomTabs().map(tab => {
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  if (!tab.disabled) {
+                    manualTabChangeRef.current = true
+                    setActiveTab(tab.id)
+                  }
+                }}
+                disabled={tab.disabled}
+                className={`flex flex-col items-center justify-center gap-1 transition-colors ${
+                  activeTab === tab.id 
+                    ? 'text-primary bg-primary/10' 
+                    : tab.disabled 
+                      ? 'text-muted-foreground opacity-50'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="text-xs font-medium">{tab.label}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      
+      {/* Mobile Hamburger Menu */}
+      <Dialog open={showMobileMenu} onOpenChange={setShowMobileMenu}>
+        <DialogContent className="mx-4 max-w-sm [&>button]:hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>More Options</span>
+              <Button 
+                variant="ghost" 
+                onClick={() => setShowMobileMenu(false)}
+                className="h-10 w-10 p-0 flex items-center justify-center"
+              >
+                <X className="h-6 w-6" style={{ flexShrink: 0 }} />
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-4">
+            {getHamburgerItems().map(item => {
+              const Icon = item.icon
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    manualTabChangeRef.current = true
+                    setActiveTab(item.id)
+                    setShowMobileMenu(false)
+                  }}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${
+                    activeTab === item.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'hover:bg-accent'
+                  }`}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span className="font-medium">{item.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
       
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
