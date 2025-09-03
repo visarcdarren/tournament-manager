@@ -107,49 +107,116 @@ export default function CompletionScreen({ tournament }) {
         </div>
         
         {/* Podium */}
-        <div className="mx-auto max-w-2xl">
-          <div className="grid grid-cols-3 items-end gap-4">
-            {/* 2nd Place */}
-            {podium[1] && (
+        <div className="mx-auto max-w-4xl">
+          {/* Desktop Podium - Hidden on mobile */}
+          <div className="hidden md:block">
+            <div className="grid grid-cols-3 items-end gap-4">
+              {/* 2nd Place */}
+              {podium[1] && (
+                <div className="space-y-2">
+                  <Card className="bg-gradient-to-b from-slate-400 to-slate-500 border-slate-300 shadow-lg">
+                    <CardContent className="p-6">
+                      <Medal className="mx-auto mb-2 h-12 w-12 text-slate-100" />
+                      <h3 className="mb-1 text-lg font-bold text-white">{podium[1].teamName}</h3>
+                      <p className="text-2xl font-bold text-slate-100">{podium[1].points}</p>
+                      <p className="text-sm text-slate-200">points</p>
+                    </CardContent>
+                  </Card>
+                  <div className="h-20 rounded bg-gradient-to-b from-slate-300 to-slate-400 shadow-md flex items-center justify-center">
+                    <span className="font-bold text-slate-800 text-lg">2nd</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* 1st Place */}
               <div className="space-y-2">
-                <Card className="position-2 border-0">
+                <Card className="bg-gradient-to-b from-yellow-100 to-yellow-200 border-yellow-300 shadow-xl scale-110">
                   <CardContent className="p-6">
-                    <Medal className="mx-auto mb-2 h-12 w-12" />
-                    <h3 className="mb-1 text-lg font-bold">{podium[1].teamName}</h3>
-                    <p className="text-2xl font-bold">{podium[1].points}</p>
-                    <p className="text-sm">points</p>
+                    <Trophy className="mx-auto mb-2 h-16 w-16 text-yellow-600" />
+                    <h3 className="mb-1 text-xl font-bold text-yellow-800">{winner.teamName}</h3>
+                    <p className="text-3xl font-bold text-yellow-700">{winner.points}</p>
+                    <p className="text-sm text-yellow-600">points</p>
                   </CardContent>
                 </Card>
-                <div className="h-20 rounded bg-gray-300"></div>
+                <div className="h-32 rounded bg-gradient-to-b from-yellow-400 to-yellow-500 shadow-lg flex items-center justify-center">
+                  <span className="font-bold text-yellow-800 text-xl">1st</span>
+                </div>
               </div>
-            )}
+              
+              {/* 3rd Place */}
+              {podium[2] && (
+                <div className="space-y-2">
+                  <Card className="bg-gradient-to-b from-amber-600 to-amber-700 border-amber-500 shadow-lg">
+                    <CardContent className="p-6">
+                      <Award className="mx-auto mb-2 h-12 w-12 text-amber-100" />
+                      <h3 className="mb-1 text-lg font-bold text-white">{podium[2].teamName}</h3>
+                      <p className="text-2xl font-bold text-amber-100">{podium[2].points}</p>
+                      <p className="text-sm text-amber-200">points</p>
+                    </CardContent>
+                  </Card>
+                  <div className="h-16 rounded bg-gradient-to-b from-amber-400 to-amber-500 shadow-md flex items-center justify-center">
+                    <span className="font-bold text-amber-800 text-lg">3rd</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Mobile Podium - Stacked rows, visible only on mobile */}
+          <div className="md:hidden space-y-4">
+            {/* 1st Place - Gold */}
+            <Card className="bg-gradient-to-r from-yellow-100 to-yellow-200 border-yellow-300 shadow-xl">
+              <CardContent className="p-6 flex items-center gap-4">
+                <div className="flex-shrink-0">
+                  <Trophy className="h-12 w-12 text-yellow-600" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="bg-yellow-500 text-yellow-900 font-bold text-sm px-2 py-1 rounded">1st</span>
+                    <h3 className="text-xl font-bold text-yellow-800">{winner.teamName}</h3>
+                  </div>
+                  <p className="text-2xl font-bold text-yellow-700">{winner.points} points</p>
+                  <p className="text-sm text-yellow-600">{winner.wins}W - {winner.draws}D - {winner.losses}L</p>
+                </div>
+              </CardContent>
+            </Card>
             
-            {/* 1st Place */}
-            <div className="space-y-2">
-              <Card className="position-1 scale-110 border-0">
-                <CardContent className="p-6">
-                  <Trophy className="mx-auto mb-2 h-16 w-16" />
-                  <h3 className="mb-1 text-xl font-bold">{winner.teamName}</h3>
-                  <p className="text-3xl font-bold">{winner.points}</p>
-                  <p className="text-sm">points</p>
+            {/* 2nd Place - Silver */}
+            {podium[1] && (
+              <Card className="bg-gradient-to-r from-slate-100 to-slate-200 border-slate-300 shadow-lg">
+                <CardContent className="p-6 flex items-center gap-4">
+                  <div className="flex-shrink-0">
+                    <Medal className="h-12 w-12 text-slate-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="bg-slate-400 text-slate-800 font-bold text-sm px-2 py-1 rounded">2nd</span>
+                      <h3 className="text-xl font-bold text-slate-800">{podium[1].teamName}</h3>
+                    </div>
+                    <p className="text-2xl font-bold text-slate-700">{podium[1].points} points</p>
+                    <p className="text-sm text-slate-600">{podium[1].wins}W - {podium[1].draws}D - {podium[1].losses}L</p>
+                  </div>
                 </CardContent>
               </Card>
-              <div className="h-32 rounded bg-yellow-500"></div>
-            </div>
+            )}
             
-            {/* 3rd Place */}
+            {/* 3rd Place - Bronze */}
             {podium[2] && (
-              <div className="space-y-2">
-                <Card className="position-3 border-0">
-                  <CardContent className="p-6">
-                    <Award className="mx-auto mb-2 h-12 w-12" />
-                    <h3 className="mb-1 text-lg font-bold">{podium[2].teamName}</h3>
-                    <p className="text-2xl font-bold">{podium[2].points}</p>
-                    <p className="text-sm">points</p>
-                  </CardContent>
-                </Card>
-                <div className="h-16 rounded bg-orange-600"></div>
-              </div>
+              <Card className="bg-gradient-to-r from-orange-100 to-orange-200 border-orange-300 shadow-lg">
+                <CardContent className="p-6 flex items-center gap-4">
+                  <div className="flex-shrink-0">
+                    <Award className="h-12 w-12 text-orange-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="bg-orange-400 text-orange-800 font-bold text-sm px-2 py-1 rounded">3rd</span>
+                      <h3 className="text-xl font-bold text-orange-800">{podium[2].teamName}</h3>
+                    </div>
+                    <p className="text-2xl font-bold text-orange-700">{podium[2].points} points</p>
+                    <p className="text-sm text-orange-600">{podium[2].wins}W - {podium[2].draws}D - {podium[2].losses}L</p>
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </div>
         </div>
