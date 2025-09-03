@@ -1,17 +1,33 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Trophy, Medal, Award, PartyPopper, Download, Plus } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { useNavigate } from '@/App'
 import { calculateScores } from '@/utils/tournament'
 import api from '@/utils/api'
 import Confetti from './Confetti'
+import { v4 as uuidv4 } from 'uuid'
 
 export default function CompletionScreen({ tournament }) {
   const navigate = useNavigate()
   const { toast } = useToast()
   const scores = calculateScores(tournament)
+  
+  // State for new tournament dialog
+  const [showNewTournamentDialog, setShowNewTournamentDialog] = useState(false)
+  const [copyPlayers, setCopyPlayers] = useState(true)
+  const [copyTeams, setCopyTeams] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
   
   // Handle case where there are no scores yet
   if (!scores || scores.length === 0) {
@@ -70,16 +86,55 @@ export default function CompletionScreen({ tournament }) {
   }
   
   const createNewTournament = async () => {
+    setIsCreating(true)
+    
     try {
-      const newTournament = await api.createTournament({
+      let newTournamentData = {
         name: `${tournament.name} - Next Round`,
-        settings: tournament.settings,
-        teams: tournament.teams.map(team => ({
-          ...team,
-          players: team.players.map(p => ({ ...p, id: undefined }))
-        })),
+        settings: { ...tournament.settings },
         schedule: [],
-        currentState: { round: 1, status: 'setup' }
+        currentState: { status: 'setup' },
+        teams: [],
+        playerPool: []
+      }
+      
+      // Handle copying players and/or teams based on user selection
+      if (copyPlayers || copyTeams) {
+        if (copyTeams) {
+          // Copy teams with their players (regenerate IDs)
+          newTournamentData.teams = tournament.teams.map(team => ({
+            id: uuidv4(),
+            name: team.name,
+            players: team.players.map(player => ({
+              id: uuidv4(),
+              name: player.name,
+              status: 'active'
+            }))
+          }))
+          newTournamentData.playerPool = []
+        } else if (copyPlayers) {
+          // Copy just players to the player pool (no team assignments)
+          const allPlayers = tournament.teams.flatMap(team => 
+            team.players.map(player => ({
+              id: uuidv4(),
+              name: player.name,
+              status: 'active'
+            }))
+          )
+          newTournamentData.playerPool = allPlayers
+          newTournamentData.teams = []
+        }
+      }
+      
+      const newTournament = await api.createTournament(newTournamentData)
+      
+      toast({
+        title: 'New Tournament Created!',
+        description: copyTeams 
+          ? 'Teams and players copied successfully' 
+          : copyPlayers 
+            ? 'Players copied to player pool' 
+            : 'Fresh tournament created'
       })
       
       navigate(`/tournament/${newTournament.id}`)
@@ -89,6 +144,9 @@ export default function CompletionScreen({ tournament }) {
         description: 'Failed to create new tournament',
         variant: 'destructive'
       })
+    } finally {
+      setIsCreating(false)
+      setShowNewTournamentDialog(false)
     }
   }
   
@@ -251,16 +309,113 @@ export default function CompletionScreen({ tournament }) {
         
         {/* Actions */}
         <div className="flex justify-center gap-4">
-          <Button variant="outline" onClick={exportResults}>
-            <Download className="mr-2 h-4 w-4" />
-            Export Results
-          </Button>
-          <Button onClick={createNewTournament}>
+          <Button onClick={() => setShowNewTournamentDialog(true)}>
             <Plus className="mr-2 h-4 w-4" />
             New Tournament
           </Button>
         </div>
       </div>
+      
+      {/* New Tournament Dialog */}
+      <Dialog open={showNewTournamentDialog} onOpenChange={setShowNewTournamentDialog}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md mx-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5 text-primary" />
+              Create New Tournament
+            </DialogTitle>
+            <DialogDescription>
+              Start a new tournament based on this one. Choose what you'd like to copy over:
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            <div className="space-y-4">
+              <div className="flex items-start space-x-3">
+                <Checkbox
+                  id="copy-players"
+                  checked={copyPlayers}
+                  onCheckedChange={setCopyPlayers}
+                  className="mt-0.5"
+                />
+                <div className="space-y-1">
+                  <label
+                    htmlFor="copy-players"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    Copy Player Names
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {copyTeams 
+                      ? 'Players will be copied with their team assignments'
+                      : 'Players will be added to the player pool for you to assign to teams'
+                    }
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-start space-x-3">
+                <Checkbox
+                  id="copy-teams"
+                  checked={copyTeams}
+                  onCheckedChange={(checked) => {
+                    setCopyTeams(checked)
+                    // If copying teams, automatically copy players too
+                    if (checked) {
+                      setCopyPlayers(true)
+                    }
+                  }}
+                  className="mt-0.5"
+                />
+                <div className="space-y-1">
+                  <label
+                    htmlFor="copy-teams"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    Copy Team Structure
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    Keep the same teams with the same player assignments
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Preview of what will be copied */}
+            <div className="rounded-lg bg-muted p-3 text-sm">
+              <div className="font-medium mb-2">Preview:</div>
+              <div className="space-y-1 text-muted-foreground">
+                <div>• Tournament settings: ✓ (always copied)</div>
+                <div>• Player names: {copyPlayers ? '✓' : '✗'}</div>
+                <div>• Team structure: {copyTeams ? '✓' : '✗'}</div>
+                <div className="text-xs mt-2">
+                  {!copyPlayers && !copyTeams && 'Starting fresh - you\'ll set up players and teams from scratch'}
+                  {copyPlayers && !copyTeams && `${tournament.teams.reduce((sum, team) => sum + team.players.length, 0)} players will be added to the player pool`}
+                  {copyTeams && `${tournament.teams.length} teams with all player assignments will be copied`}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter className="flex flex-col gap-3 sm:flex-row sm:gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowNewTournamentDialog(false)}
+              disabled={isCreating}
+              className="w-full order-2 sm:order-1"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={createNewTournament}
+              disabled={isCreating}
+              className="w-full order-1 sm:order-2"
+            >
+              {isCreating ? 'Creating...' : 'Create Tournament'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
