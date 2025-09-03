@@ -322,13 +322,19 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
     }
     
     // Issue 2: Tournament length
-    const estimatedGameTime = settings.timer.enabled ? settings.timer.duration : 15
-    const totalTournamentTime = settings.rounds * estimatedGameTime
-    if (totalTournamentTime > 180) { // More than 3 hours
+    const estimatedGameTime = settings.timer.enabled ? settings.timer.duration : 20 // Use 20 min estimate for non-timed games
+    const totalGameTime = settings.rounds * estimatedGameTime
+    const changeoverTime = settings.rounds * 3 // 3 min per round changeover
+    const totalTournamentTime = totalGameTime + changeoverTime
+    
+    if (totalTournamentTime > 240) { // More than 4 hours
+      const hours = Math.floor(totalTournamentTime / 60)
+      const minutes = totalTournamentTime % 60
+      const timeDisplay = hours > 0 ? `${hours}h ${minutes}m` : `${minutes} min`
       issues.push({
         type: 'info',
         title: 'Long tournament duration',
-        description: `Estimated ${Math.round(totalTournamentTime / 60)} hours total (${settings.rounds} rounds × ${estimatedGameTime} min).`
+        description: `Estimated ${timeDisplay} total (${settings.rounds} rounds, including changeover time). Consider breaks for longer tournaments.`
       })
     }
     
@@ -572,8 +578,23 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
                 <div>Games per Round: {totalStations}</div>
                 <div>Players per Round: ~{playersPerRound} active, ~{restingPlayers} resting</div>
                 <div>Total Games: {settings.rounds * totalStations}</div>
-                {settings.timer.enabled && (
-                  <div>Round Duration: {settings.timer.duration} minutes each</div>
+                {settings.timer.enabled ? (
+                  <>
+                    <div className="border-t pt-2 mt-2">
+                      <div className="font-medium text-gray-800 mb-1">Tournament Duration</div>
+                      <div>Game Time: {settings.rounds} rounds × {settings.timer.duration} min = {settings.rounds * settings.timer.duration} minutes</div>
+                      <div className="text-blue-700">Estimated Total: {(() => {
+                        const gameTimeMinutes = settings.rounds * settings.timer.duration
+                        const changeoverMinutes = Math.max(1, Math.round(settings.rounds * 3)) // 3 min per round changeover
+                        const totalMinutes = gameTimeMinutes + changeoverMinutes
+                        const hours = Math.floor(totalMinutes / 60)
+                        const minutes = totalMinutes % 60
+                        return hours > 0 ? `${hours}h ${minutes}m` : `${minutes} min`
+                      })()} <span className="text-xs text-gray-600">(allowing 3 min per changeover)</span></div>
+                    </div>
+                  </>
+                ) : (
+                  <div>No timer set - games run at player pace</div>
                 )}
               </div>
             </div>
