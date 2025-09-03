@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Eye, Download, Trash2, Calendar, Globe, Lock, Share } from 'lucide-react'
+import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Eye, Download, Trash2, Calendar, Globe, Lock, Share, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -20,6 +20,7 @@ import TeamManagement from './TeamManagement'
 import LiveTournament from './LiveTournament'
 import Leaderboard from './Leaderboard'
 import CompletionScreen from './CompletionScreen'
+import PlayerPoolManager from './PlayerPoolManager'
 import ScheduleViewer from './ScheduleViewer'
 import { getCurrentRound, isTournamentComplete } from '@/utils/tournament'
 
@@ -331,10 +332,14 @@ export default function TournamentView({ tournamentId }) {
             manualTabChangeRef.current = true
             setActiveTab(value)
           }}>
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 h-auto">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 h-auto">
               <TabsTrigger value="setup" disabled={!isCreator} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
                 <Settings className="h-4 w-4 flex-shrink-0" />
                 <span className="text-xs sm:text-sm">Setup</span>
+              </TabsTrigger>
+              <TabsTrigger value="players" disabled={!isCreator} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                <User className="h-4 w-4 flex-shrink-0" />
+                <span className="text-xs sm:text-sm">Players</span>
               </TabsTrigger>
               <TabsTrigger value="teams" disabled={!isCreator} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
                 <Users className="h-4 w-4 flex-shrink-0" />
@@ -358,6 +363,17 @@ export default function TournamentView({ tournamentId }) {
               <TournamentSetup 
                 tournament={tournament} 
                 isAdmin={isCreator} 
+                onNavigateToPlayers={() => {
+                  manualTabChangeRef.current = true
+                  setActiveTab('players')
+                }}
+              />
+            </TabsContent>
+            
+            <TabsContent value="players">
+              <PlayerPoolManager 
+                tournament={tournament} 
+                isAdmin={isCreator}
                 onNavigateToTeams={() => {
                   manualTabChangeRef.current = true
                   setActiveTab('teams')

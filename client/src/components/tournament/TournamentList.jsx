@@ -187,6 +187,7 @@ export default function TournamentList() {
           scoring: { win: 3, draw: 1, loss: 0 }
         },
         teams: [],
+        playerPool: [],
         schedule: [],
         currentState: { round: 1, status: 'setup' },
         isPublic: false // Start as private

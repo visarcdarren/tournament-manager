@@ -12,7 +12,7 @@ import useTournamentStore from '@/stores/tournamentStore'
 import GameTypeManager from './GameTypeManager'
 import ScheduleViewer from './ScheduleViewer'
 
-export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams }) {
+export default function TournamentSetup({ tournament, isAdmin, onNavigateToPlayers }) {
   const { toast } = useToast()
   const tournamentStore = useTournamentStore()
   const [settings, setSettings] = useState(() => {
@@ -148,7 +148,7 @@ export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams
     }
   }
   
-  const saveAndEditTeams = async () => {
+  const saveAndEditPlayers = async () => {
     try {
       setIsSaving(true)
       const updatedTournament = {
@@ -161,12 +161,12 @@ export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams
       
       toast({
         title: 'Success',
-        description: 'Settings saved! Switching to teams...'
+        description: 'Settings saved! Switching to players...'
       })
       
-      // Navigate to teams tab after successful save
-      if (onNavigateToTeams) {
-        onNavigateToTeams()
+      // Navigate to players tab after successful save
+      if (onNavigateToPlayers) {
+        onNavigateToPlayers()
       }
     } catch (error) {
       toast({
@@ -223,12 +223,76 @@ export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams
   const playersPerRound = Math.min(totalPlayers, totalStations * 2) // Assuming minimum 1v1
   const restingPlayers = Math.max(0, totalPlayers - playersPerRound)
   
+  // Smart Analysis Function
+  const analyzeSettings = () => {
+    const issues = []
+    
+    // Skip analysis if no game types are configured yet
+    if (!settings.gameTypes || settings.gameTypes.length === 0) {
+      return { issues }
+    }
+    
+    // Calculate how many players can actually play per round
+    const totalGamePositions = totalStations * 2 // Each station accommodates 2 players minimum
+    const playersWhoWillSitOut = Math.max(0, totalPlayers - totalGamePositions)
+    
+    // Issue 1: Too many players for available game positions
+    if (playersWhoWillSitOut > 0) {
+      const percentageSittingOut = Math.round((playersWhoWillSitOut / totalPlayers) * 100)
+      issues.push({
+        type: 'warning',
+        title: `${playersWhoWillSitOut} player(s) will sit out each round`,
+        description: `You have ${totalPlayers} total players but only ${totalGamePositions} game positions available (${percentageSittingOut}% sitting out).`
+      })
+    }
+    
+    // Issue 2: Tournament length
+    const estimatedGameTime = settings.timer.enabled ? settings.timer.duration : 15
+    const totalTournamentTime = settings.rounds * estimatedGameTime
+    if (totalTournamentTime > 180) { // More than 3 hours
+      issues.push({
+        type: 'info',
+        title: 'Long tournament duration',
+        description: `Estimated ${Math.round(totalTournamentTime / 60)} hours total (${settings.rounds} rounds × ${estimatedGameTime} min).`
+      })
+    }
+    
+    // Issue 3: Many unused stations
+    if (totalStations > settings.teams) {
+      const unusedStations = totalStations - settings.teams
+      issues.push({
+        type: 'info', 
+        title: `${unusedStations} station(s) will be unused`,
+        description: `You have ${totalStations} stations but only ${settings.teams} teams. Some stations won't have games.`
+      })
+    }
+    
+    // Issue 4: Very short rounds
+    if (settings.timer.enabled && settings.timer.duration < 10) {
+      issues.push({
+        type: 'warning',
+        title: 'Very short rounds',
+        description: `${settings.timer.duration} minutes may not be enough time to complete games.`
+      })
+    }
+    
+    // Issue 5: Too many rounds
+    if (settings.rounds > (settings.teams - 1) * 2) {
+      issues.push({
+        type: 'info',
+        title: 'Many rounds scheduled',
+        description: `${settings.rounds} rounds is quite long. Teams may play each other multiple times.`
+      })
+    }
+    
+    return { issues }
+  }
+  
   // Check if basic settings are valid
   const hasBasicSettings = settings.teams >= 2 && 
                           settings.teams <= 10 && 
                           settings.playersPerTeam >= 4 && 
                           settings.playersPerTeam <= 10 && 
-                          settings.playersPerTeam % 2 === 0 &&
                           settings.rounds >= 1
   
   // For initial setup, we don't need teams to be created yet
@@ -238,6 +302,9 @@ export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams
   const canPreview = tournament.teams?.length >= 2 && 
                     validation?.valid && 
                     canEdit
+  
+  // Get analysis
+  const { issues } = analyzeSettings()
   
   return (
     <div className="space-y-6">
@@ -277,12 +344,11 @@ export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams
                   type="number"
                   min="4"
                   max="10"
-                  step="2"
                   value={settings.playersPerTeam}
                   onChange={(e) => handleSettingChange('playersPerTeam', e.target.value)}
                   disabled={!canEdit}
                 />
-                <p className="mt-1 text-sm text-muted-foreground">4-10 players (must be even)</p>
+                <p className="mt-1 text-sm text-muted-foreground">4-10 players (any number allowed)</p>
               </div>
             </div>
           </div>
@@ -403,12 +469,16 @@ export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams
         </Card>
       )}
 
-      {/* Summary & Validation */}
+      {/* Enhanced Summary & Validation */}
       <Card className={hasValidationErrors ? 'border-destructive' : ''}>
         <CardHeader>
-          <CardTitle>Tournament Summary</CardTitle>
+          <CardTitle>Tournament Summary & Analysis</CardTitle>
+          <CardDescription>
+            Overview of your tournament configuration with smart recommendations
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Basic Stats */}
           <div className="grid gap-2 text-sm">
             <div>Total Players: {totalPlayers}</div>
             <div>Total Stations: {totalStations}</div>
@@ -416,11 +486,34 @@ export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams
             <div>Players per Round: ~{playersPerRound} active, ~{restingPlayers} resting</div>
             <div>Total Games: {settings.rounds * totalStations}</div>
             {settings.timer.enabled && (
-              <div>Round Duration: {settings.timer.duration} minutes</div>
+              <div>Round Duration: {settings.timer.duration} minutes each</div>
             )}
           </div>
           
-          {/* Validation Messages */}
+          {/* Smart Analysis */}
+          {issues.length > 0 && (
+            <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <h4 className="font-semibold text-base flex items-center gap-2 text-gray-800">
+                <AlertCircle className="h-5 w-5" />
+                🎯 Tournament Setup Assistant
+              </h4>
+              <p className="text-sm text-gray-600 -mt-1">
+                Here are some observations about your current configuration:
+              </p>
+              
+              {issues.map((issue, index) => (
+                <div key={index} className={`space-y-1 ${
+                  issue.type === 'warning' ? 'text-amber-700' : 
+                  issue.type === 'info' ? 'text-blue-700' : 'text-gray-700'
+                }`}>
+                  <div className="font-medium text-sm">{issue.title}</div>
+                  <div className="text-xs opacity-90">{issue.description}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Backend Validation Messages */}
           {validation && (
             <div className="space-y-2">
               {validation.errors && validation.errors.length > 0 && (
@@ -447,13 +540,6 @@ export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams
             </div>
           )}
           
-          {settings.playersPerTeam % 2 !== 0 && (
-            <div className="flex items-center gap-2 text-sm text-destructive">
-              <AlertCircle className="h-4 w-4" />
-              Players per team must be an even number
-            </div>
-          )}
-          
           {canEdit && (
             <div className="flex gap-2 flex-wrap">
               <Button 
@@ -465,11 +551,11 @@ export default function TournamentSetup({ tournament, isAdmin, onNavigateToTeams
                 {isSaving ? 'Saving...' : 'Save Settings'}
               </Button>
               <Button 
-                onClick={saveAndEditTeams} 
+                onClick={saveAndEditPlayers} 
                 disabled={isSaving || !canSaveSettings}
               >
                 <Users className="mr-2 h-4 w-4" />
-                {isSaving ? 'Saving...' : 'Save and Edit Teams'}
+                {isSaving ? 'Saving...' : 'Save and Add Players'}
               </Button>
               {canPreview && (
                 <Button 
