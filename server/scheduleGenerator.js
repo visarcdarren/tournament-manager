@@ -813,7 +813,7 @@ function checkRuleViolations(game, round, tracker) {
     );
     const playersWhoRestedLastRound = tracker.getRestingPlayers(round);
     const availableRestedPlayers = playersWhoRestedLastRound.filter(p => 
-      teams.some(team => team.players.some(tp => tp.id === p.id && tp.status === 'active'))
+      tracker.allPlayers.some(player => player.id === p.id)
     );
     
     if (playersWhoPlayedLastRound.length > 0 && availableRestedPlayers.length > 0) {

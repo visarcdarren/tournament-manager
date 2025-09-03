@@ -609,9 +609,13 @@ app.post('/api/tournament/:id/generate-schedule', authenticateAdmin, async (req,
       });
     }
     
-    // Generate the schedule
-    const schedule = generateSchedule(tournament);
-    tournament.schedule = schedule;
+    // If no schedule exists, generate one first
+    if (!tournament.schedule || tournament.schedule.length === 0) {
+      const schedule = generateSchedule(tournament);
+      tournament.schedule = schedule;
+    }
+    
+    // Activate the tournament with the existing schedule
     tournament.currentState = {
       status: 'active',
       currentRound: 1
@@ -621,28 +625,29 @@ app.post('/api/tournament/:id/generate-schedule', authenticateAdmin, async (req,
     await addAuditEntry(tournament.id, {
       deviceId: req.deviceId,
       deviceName: 'Admin',
-      action: 'GENERATE_SCHEDULE',
+      action: 'START_TOURNAMENT',
       details: { 
-        rounds: schedule.length,
-        totalGames: schedule.reduce((sum, round) => sum + round.games.length, 0)
+        rounds: tournament.schedule.length,
+        totalGames: tournament.schedule.reduce((sum, round) => sum + round.games.length, 0),
+        usedExistingSchedule: tournament.schedule.length > 0
       }
     });
     
     // Broadcast update
     broadcastToTournament(tournament.id, {
-      type: 'tournament-update',
+      type: 'tournament-started',
       data: tournament
     });
     
     res.json({ 
       success: true, 
-      schedule,
+      schedule: tournament.schedule,
       validation 
     });
   } catch (error) {
-    console.error('Schedule generation error:', error);
+    console.error('Tournament start error:', error);
     res.status(500).json({ 
-      error: 'Failed to generate schedule',
+      error: 'Failed to start tournament',
       message: error.message 
     });
   }
@@ -763,10 +768,11 @@ app.post('/api/tournament/:id/validate', authenticateAdmin, async (req, res) => 
   res.json(validation);
 });
 
-// Preview schedule endpoint (admin only)
+// Preview/Generate schedule endpoint (admin only)
 app.post('/api/tournament/:id/preview-schedule', authenticateAdmin, async (req, res) => {
   try {
     const tournament = req.tournament;
+    const { forceRegenerate = false } = req.body;
     
     // Validate setup first
     const validation = validateTournamentSetup(tournament);
@@ -777,13 +783,45 @@ app.post('/api/tournament/:id/preview-schedule', authenticateAdmin, async (req, 
       });
     }
     
-    // Generate preview schedule without saving to tournament
+    // If schedule already exists and we're not forcing regeneration, return it
+    if (tournament.schedule && tournament.schedule.length > 0 && !forceRegenerate) {
+      res.json({ 
+        success: true, 
+        schedule: tournament.schedule,
+        validation,
+        isExisting: true
+      });
+      return;
+    }
+    
+    // Generate new schedule
     const schedule = generateSchedule(tournament);
+    
+    // Save the generated schedule to the tournament
+    tournament.schedule = schedule;
+    await saveTournament(tournament.id, tournament);
+    await addAuditEntry(tournament.id, {
+      deviceId: req.deviceId,
+      deviceName: req.device?.name || 'Admin',
+      action: forceRegenerate ? 'REGENERATE_SCHEDULE_PREVIEW' : 'GENERATE_SCHEDULE_PREVIEW',
+      details: { 
+        rounds: schedule.length,
+        totalGames: schedule.reduce((sum, round) => sum + round.games.length, 0),
+        forceRegenerate
+      }
+    });
+    
+    // Broadcast update
+    broadcastToTournament(tournament.id, {
+      type: 'schedule-preview-generated',
+      data: { schedule, validation }
+    });
     
     res.json({ 
       success: true, 
       schedule,
-      validation 
+      validation,
+      isExisting: false
     });
   } catch (error) {
     console.error('Schedule preview error:', error);
