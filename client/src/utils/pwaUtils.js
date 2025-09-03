@@ -33,7 +33,7 @@ export const isStandalone = () => {
 };
 
 export const canInstallPWA = () => {
-  return !isStandalone() && detectMobile();
+  return !isStandalone(); // Removed mobile restriction
 };
 
 export const getInstallInstructions = () => {
@@ -71,8 +71,7 @@ export const shouldShowInstallPrompt = () => {
   // Don't show if already installed
   if (isStandalone()) return false;
   
-  // Don't show on desktop
-  if (!detectMobile()) return false;
+  // Now allow on both desktop and mobile
   
   // Check if user recently dismissed
   const dismissed = localStorage.getItem('pwa-install-dismissed');
