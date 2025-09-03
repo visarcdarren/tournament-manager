@@ -84,8 +84,63 @@ class TournamentAPI {
     })
   }
   
-  // Removed: Role management (no longer needed)
-  // The system is now simplified to creator-only control
+  // Admin sharing
+  async shareAdmin(tournamentId, password) {
+    // Get the current base URL from the browser
+    const baseUrl = window.location.origin;
+    
+    return this.fetch(`/tournament/${tournamentId}/share-admin`, {
+      method: 'POST',
+      body: JSON.stringify({ password, baseUrl })
+    })
+  }
+  
+  async joinAsAdmin(tournamentId, password) {
+    return this.fetch(`/tournament/${tournamentId}/join-admin`, {
+      method: 'POST',
+      body: JSON.stringify({ password })
+    })
+  }
+  
+  async revokeAdminShare(tournamentId) {
+    return this.fetch(`/tournament/${tournamentId}/revoke-admin-share`, {
+      method: 'POST'
+    })
+  }
+  
+  async getAdminShareStatus(tournamentId) {
+    return this.fetch(`/tournament/${tournamentId}/admin-share-status`)
+  }
+  
+  // Device and role management
+  async requestRole(tournamentId, requestedRole, stations, deviceName) {
+    return this.fetch(`/tournament/${tournamentId}/request-role`, {
+      method: 'POST',
+      body: JSON.stringify({ requestedRole, stations, deviceName })
+    })
+  }
+  
+  async grantRole(tournamentId, deviceId, role, stations) {
+    return this.fetch(`/tournament/${tournamentId}/grant-role`, {
+      method: 'POST',
+      body: JSON.stringify({ deviceId, role, stations })
+    })
+  }
+  
+  async revokeRole(tournamentId, deviceId) {
+    return this.fetch(`/tournament/${tournamentId}/revoke-role`, {
+      method: 'POST',
+      body: JSON.stringify({ deviceId })
+    })
+  }
+  
+  async getDeviceStatus(tournamentId) {
+    return this.fetch(`/tournament/${tournamentId}/device-status`)
+  }
+  
+  async getPendingRequests(tournamentId) {
+    return this.fetch(`/tournament/${tournamentId}/pending-requests`)
+  }
   
   // Public/Private toggle
   async toggleTournamentPublic(tournamentId) {

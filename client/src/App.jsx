@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { Toaster } from '@/components/ui/toaster'
 import TournamentList from '@/components/tournament/TournamentList'
 import TournamentView from '@/components/tournament/TournamentView'
+import AdminJoinPage from '@/components/tournament/AdminJoinPage'
 import useDeviceStore from '@/stores/deviceStore'
 import PWAInstallPrompt from '@/components/common/PWAInstallPrompt'
 
@@ -33,6 +34,10 @@ function App() {
         const id = path.split('/')[2]
         setTournamentId(id)
         setCurrentView('tournament')
+      } else if (path.startsWith('/admin-join/')) {
+        const id = path.split('/')[2]
+        setTournamentId(id)
+        setCurrentView('admin-join')
       } else {
         setCurrentView('list')
       }
@@ -44,6 +49,10 @@ function App() {
           const id = path.split('/')[2]
           setTournamentId(id)
           setCurrentView('tournament')
+        } else if (path.startsWith('/admin-join/')) {
+          const id = path.split('/')[2]
+          setTournamentId(id)
+          setCurrentView('admin-join')
         } else {
           setCurrentView('list')
         }
@@ -65,6 +74,10 @@ function App() {
         const id = path.split('/')[2]
         setTournamentId(id)
         setCurrentView('tournament')
+      } else if (path.startsWith('/admin-join/')) {
+        const id = path.split('/')[2]
+        setTournamentId(id)
+        setCurrentView('admin-join')
       } else {
         setCurrentView('list')
       }
@@ -116,6 +129,8 @@ function App() {
       <div className="min-h-screen bg-background text-foreground">
         {currentView === 'list' ? (
           <TournamentList />
+        ) : currentView === 'admin-join' ? (
+          <AdminJoinPage />
         ) : (
           <TournamentView tournamentId={tournamentId} />
         )}

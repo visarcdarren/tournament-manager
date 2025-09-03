@@ -115,22 +115,49 @@ function authenticate(req, res, next) {
   next();
 }
 
-// Creator authentication
-async function authenticateCreator(req, res, next) {
+// Admin authentication - supports multiple admins
+async function authenticateAdmin(req, res, next) {
   authenticate(req, res, async () => {
     const tournament = await loadTournament(req.params.id);
     if (!tournament) {
       return res.status(404).json({ error: 'Tournament not found' });
     }
-    if (tournament.creatorDeviceId !== req.deviceId) {
-      return res.status(403).json({ error: 'Creator access required' });
+    
+    // Check if user is original admin or has been granted admin access
+    const device = tournament.devices?.find(d => d.id === req.deviceId);
+    const isOriginalAdmin = tournament.adminDeviceId === req.deviceId;
+    const isGrantedAdmin = device?.role === 'ADMIN';
+    
+    if (!isOriginalAdmin && !isGrantedAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
     }
+    
     req.tournament = tournament;
+    req.device = device;
     next();
   });
 }
 
-// Removed: authenticateScorer - no longer needed in simplified system
+// Scorer authentication
+async function authenticateScorer(req, res, next) {
+  authenticate(req, res, async () => {
+    const tournament = await loadTournament(req.params.id);
+    if (!tournament) {
+      return res.status(404).json({ error: 'Tournament not found' });
+    }
+    
+    const device = tournament.devices?.find(d => d.id === req.deviceId);
+    if (!device || (device.role !== 'SCORER' && device.role !== 'ADMIN')) {
+      return res.status(403).json({ error: 'Scorer access required' });
+    }
+    
+    req.tournament = tournament;
+    req.device = device;
+    next();
+  });
+}
+
+
 
 // Routes
 
@@ -165,17 +192,22 @@ app.get('/api/tournaments', async (req, res) => {
           const data = await fs.readFile(path.join(DATA_DIR, file), 'utf8');
           const tournament = JSON.parse(data);
           
+          // Check if user has admin access to this tournament
+          const isOriginalAdmin = deviceId && tournament.adminDeviceId === deviceId;
+          const hasAdminAccess = deviceId && tournament.devices?.some(d => d.id === deviceId && d.role === 'ADMIN');
+          const isAdmin = isOriginalAdmin || hasAdminAccess;
+          
           const tournamentInfo = {
             id: tournament.id,
             name: tournament.name,
             status: tournament.currentState.status,
             created: tournament.created,
             isPublic: tournament.isPublic || false,
-            isOwner: deviceId && tournament.creatorDeviceId === deviceId
+            isAdmin: isAdmin
           };
           
-          // Sort into creator's tournaments vs public tournaments
-          if (deviceId && tournament.creatorDeviceId === deviceId) {
+          // Sort into admin tournaments vs public tournaments
+          if (isAdmin) {
             myTournaments.push(tournamentInfo);
           } else if (tournament.isPublic) {
             publicTournaments.push(tournamentInfo);
@@ -206,8 +238,13 @@ app.post('/api/tournaments', authenticate, async (req, res) => {
     id: uuidv4(),
     version: 2,
     ...req.body,
-    creatorDeviceId: req.deviceId,
-    creatorName: req.headers['x-device-name'] || 'Tournament Creator',
+    adminDeviceId: req.deviceId,
+    devices: [{
+      id: req.deviceId,
+      name: req.headers['x-device-name'] || 'Admin Device',
+      role: 'ADMIN'
+    }],
+    pendingRequests: [],
     isPublic: false, // Default to private
     created: new Date().toISOString()
   };
@@ -215,7 +252,7 @@ app.post('/api/tournaments', authenticate, async (req, res) => {
   await saveTournament(tournament.id, tournament);
   await addAuditEntry(tournament.id, {
     deviceId: req.deviceId,
-    deviceName: req.headers['x-device-name'] || 'Tournament Creator',
+    deviceName: req.headers['x-device-name'] || 'Admin Device',
     action: 'CREATE_TOURNAMENT',
     details: { tournamentName: tournament.name }
   });
@@ -235,24 +272,32 @@ app.get('/api/tournament/:id', authenticate, async (req, res) => {
     return res.status(404).json({ error: 'Tournament not found' });
   }
   
-  // Check access permissions
-  const isCreator = tournament.creatorDeviceId === req.deviceId;
-  const canView = isCreator || tournament.isPublic;
+  // Check device permissions
+  const device = tournament.devices?.find(d => d.id === req.deviceId);
+  const isOriginalAdmin = tournament.adminDeviceId === req.deviceId;
+  const hasAdminAccess = device?.role === 'ADMIN';
+  const hasAccessPermission = device?.role && ['ADMIN', 'SCORER'].includes(device.role);
+  const canView = isOriginalAdmin || hasAdminAccess || hasAccessPermission || tournament.isPublic;
   
   if (!canView) {
     return res.status(403).json({ error: 'Tournament is private' });
   }
   
-  // Return tournament data with user role
-  res.json({ 
-    ...tournament, 
-    userRole: isCreator ? 'CREATOR' : 'VIEWER',
-    isCreator 
-  });
+  // Determine user role
+  const userRole = (isOriginalAdmin || hasAdminAccess) ? 'ADMIN' : (device?.role || 'VIEWER');
+  
+  // Filter data based on role
+  if (userRole === 'VIEWER') {
+    // Remove sensitive data for viewers
+    const { pendingRequests, adminSharePassword, ...viewerData } = tournament;
+    res.json({ ...viewerData, userRole, isOriginalAdmin });
+  } else {
+    res.json({ ...tournament, userRole, isOriginalAdmin });
+  }
 });
 
-// Update tournament (creator only)
-app.put('/api/tournament/:id', authenticateCreator, async (req, res) => {
+// Update tournament (admin only)
+app.put('/api/tournament/:id', authenticateAdmin, async (req, res) => {
   await saveTournament(req.params.id, req.body);
   
   broadcastToTournament(req.params.id, {
@@ -263,8 +308,8 @@ app.put('/api/tournament/:id', authenticateCreator, async (req, res) => {
   res.json({ success: true });
 });
 
-// Toggle tournament public/private status (creator only)
-app.post('/api/tournament/:id/toggle-public', authenticateCreator, async (req, res) => {
+// Toggle tournament public/private status (admin only)
+app.post('/api/tournament/:id/toggle-public', authenticateAdmin, async (req, res) => {
   const tournament = req.tournament;
   tournament.isPublic = !tournament.isPublic;
   
@@ -287,11 +332,271 @@ app.post('/api/tournament/:id/toggle-public', authenticateCreator, async (req, r
   });
 });
 
-// Removed: Complex role management system (request-role, grant-role, revoke-role)
-// The system is now simplified to creator-only control
+// Admin sharing functionality
 
-// Generate schedule endpoint (creator only)
-app.post('/api/tournament/:id/generate-schedule', authenticateCreator, async (req, res) => {
+// Generate admin share link with password (admin only)
+app.post('/api/tournament/:id/share-admin', authenticateAdmin, async (req, res) => {
+  const { password, baseUrl } = req.body;
+  const tournament = req.tournament;
+  
+  if (!password || password.length < 4) {
+    return res.status(400).json({ error: 'Password must be at least 4 characters' });
+  }
+  
+  if (!baseUrl) {
+    return res.status(400).json({ error: 'Base URL is required' });
+  }
+  
+  // Store the password hash
+  tournament.adminSharePassword = crypto.createHash('sha256').update(password).digest('hex');
+  
+  await saveTournament(tournament.id, tournament);
+  await addAuditEntry(tournament.id, {
+    deviceId: req.deviceId,
+    deviceName: req.device?.name || 'Admin',
+    action: 'CREATE_ADMIN_SHARE',
+    details: { hasPassword: true }
+  });
+  
+  // Use the frontend-provided base URL
+  const shareLink = `${baseUrl}/admin-join/${tournament.id}`;
+  res.json({ shareLink, password });
+});
+
+// Join as admin using share link
+app.post('/api/tournament/:id/join-admin', authenticate, async (req, res) => {
+  const { password } = req.body;
+  const tournament = await loadTournament(req.params.id);
+  
+  if (!tournament) {
+    return res.status(404).json({ error: 'Tournament not found' });
+  }
+  
+  if (!tournament.adminSharePassword) {
+    return res.status(404).json({ error: 'No admin sharing configured for this tournament' });
+  }
+  
+  const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+  if (passwordHash !== tournament.adminSharePassword) {
+    // Add delay to prevent brute force
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return res.status(401).json({ error: 'Invalid password' });
+  }
+  
+  // Grant admin access
+  const deviceId = req.deviceId;
+  const deviceName = req.headers['x-device-name'] || 'Shared Admin Device';
+  
+  tournament.devices = tournament.devices || [];
+  const existingDevice = tournament.devices.find(d => d.id === deviceId);
+  
+  if (existingDevice) {
+    existingDevice.role = 'ADMIN';
+    existingDevice.name = deviceName;
+  } else {
+    tournament.devices.push({
+      id: deviceId,
+      name: deviceName,
+      role: 'ADMIN'
+    });
+  }
+  
+  await saveTournament(tournament.id, tournament);
+  await addAuditEntry(tournament.id, {
+    deviceId: deviceId,
+    deviceName: deviceName,
+    action: 'JOIN_AS_ADMIN',
+    details: { 
+      grantedAdmin: true,
+      viaShareLink: true,
+      timestamp: new Date().toISOString()
+    }
+  });
+  
+  // Broadcast the update
+  broadcastToTournament(tournament.id, {
+    type: 'admin-joined',
+    data: { deviceId, deviceName, role: 'ADMIN' }
+  });
+  
+  console.log('[ADMIN_SHARE] Admin access granted to device:', deviceId);
+  
+  res.json({ 
+    success: true, 
+    message: 'Admin access granted',
+    userRole: 'ADMIN'
+  });
+});
+
+// Revoke admin share (admin only)
+app.post('/api/tournament/:id/revoke-admin-share', authenticateAdmin, async (req, res) => {
+  const tournament = req.tournament;
+  
+  // Remove the share password
+  delete tournament.adminSharePassword;
+  
+  await saveTournament(tournament.id, tournament);
+  await addAuditEntry(tournament.id, {
+    deviceId: req.deviceId,
+    deviceName: req.device?.name || 'Admin',
+    action: 'REVOKE_ADMIN_SHARE',
+    details: { revokedAt: new Date().toISOString() }
+  });
+  
+  res.json({ success: true, message: 'Admin sharing disabled' });
+});
+
+// Get admin share status (admin only)
+app.get('/api/tournament/:id/admin-share-status', authenticateAdmin, async (req, res) => {
+  const tournament = req.tournament;
+  
+  res.json({
+    hasSharingEnabled: !!tournament.adminSharePassword,
+    adminCount: tournament.devices?.filter(d => d.role === 'ADMIN').length || 1
+  });
+});
+
+// Device and role management
+
+// Request role
+app.post('/api/tournament/:id/request-role', authenticate, async (req, res) => {
+  const tournament = await loadTournament(req.params.id);
+  if (!tournament) {
+    return res.status(404).json({ error: 'Tournament not found' });
+  }
+  
+  const { requestedRole, stations, deviceName } = req.body;
+  
+  // Add to pending requests
+  tournament.pendingRequests = tournament.pendingRequests || [];
+  tournament.pendingRequests.push({
+    deviceId: req.deviceId,
+    deviceName: deviceName || 'Unknown Device',
+    requestedRole,
+    stations,
+    requestedAt: new Date().toISOString()
+  });
+  
+  await saveTournament(tournament.id, tournament);
+  
+  // Notify admin
+  broadcastToTournament(tournament.id, {
+    type: 'role-request',
+    data: {
+      deviceId: req.deviceId,
+      deviceName,
+      requestedRole
+    }
+  });
+  
+  res.json({ status: 'pending' });
+});
+
+// Grant role (admin only)
+app.post('/api/tournament/:id/grant-role', authenticateAdmin, async (req, res) => {
+  const { deviceId, role, stations } = req.body;
+  const tournament = req.tournament;
+  
+  // Update device role
+  tournament.devices = tournament.devices || [];
+  const existingDevice = tournament.devices.find(d => d.id === deviceId);
+  
+  if (existingDevice) {
+    existingDevice.role = role;
+    existingDevice.stations = stations;
+  } else {
+    const request = tournament.pendingRequests?.find(r => r.deviceId === deviceId);
+    tournament.devices.push({
+      id: deviceId,
+      name: request?.deviceName || 'Unknown Device',
+      role,
+      stations
+    });
+  }
+  
+  // Remove from pending requests
+  tournament.pendingRequests = tournament.pendingRequests?.filter(r => r.deviceId !== deviceId) || [];
+  
+  await saveTournament(tournament.id, tournament);
+  await addAuditEntry(tournament.id, {
+    deviceId: req.deviceId,
+    deviceName: req.device?.name || 'Admin',
+    action: 'GRANT_PERMISSION',
+    details: { targetDeviceId: deviceId, role, stations }
+  });
+  
+  // Notify all clients
+  broadcastToTournament(tournament.id, {
+    type: 'role-granted',
+    data: { deviceId, role }
+  });
+  
+  res.json({ success: true });
+});
+
+// Revoke role (admin only)
+app.post('/api/tournament/:id/revoke-role', authenticateAdmin, async (req, res) => {
+  const { deviceId } = req.body;
+  const tournament = req.tournament;
+  
+  // Prevent revoking original admin
+  if (deviceId === tournament.adminDeviceId) {
+    return res.status(400).json({ error: 'Cannot revoke original admin access' });
+  }
+  
+  // Update device role
+  const device = tournament.devices?.find(d => d.id === deviceId);
+  if (device) {
+    device.role = 'VIEWER';
+    delete device.stations;
+  }
+  
+  await saveTournament(tournament.id, tournament);
+  await addAuditEntry(tournament.id, {
+    deviceId: req.deviceId,
+    deviceName: req.device?.name || 'Admin',
+    action: 'REVOKE_PERMISSION',
+    details: { targetDeviceId: deviceId }
+  });
+  
+  // Notify all clients
+  broadcastToTournament(tournament.id, {
+    type: 'role-revoked',
+    data: { deviceId }
+  });
+  
+  res.json({ success: true });
+});
+
+// Check device status endpoint
+app.get('/api/tournament/:id/device-status', authenticate, async (req, res) => {
+  const tournament = await loadTournament(req.params.id);
+  if (!tournament) {
+    return res.status(404).json({ error: 'Tournament not found' });
+  }
+  
+  const device = tournament.devices?.find(d => d.id === req.deviceId);
+  const isOriginalAdmin = tournament.adminDeviceId === req.deviceId;
+  
+  res.json({
+    deviceId: req.deviceId,
+    currentRole: device?.role || 'VIEWER',
+    isOriginalAdmin,
+    hasPendingRequest: tournament.pendingRequests?.some(r => r.deviceId === req.deviceId)
+  });
+});
+
+// Check pending requests (admin only)
+app.get('/api/tournament/:id/pending-requests', authenticateAdmin, async (req, res) => {
+  const tournament = req.tournament;
+  res.json({
+    pendingRequests: tournament.pendingRequests || [],
+    totalRequests: (tournament.pendingRequests || []).length
+  });
+});
+
+// Generate schedule endpoint (admin only)
+app.post('/api/tournament/:id/generate-schedule', authenticateAdmin, async (req, res) => {
   try {
     const tournament = req.tournament;
     
@@ -343,15 +648,15 @@ app.post('/api/tournament/:id/generate-schedule', authenticateCreator, async (re
   }
 });
 
-// Validate tournament setup endpoint (creator only)
-app.post('/api/tournament/:id/validate', authenticateCreator, async (req, res) => {
+// Validate tournament setup endpoint (admin only)
+app.post('/api/tournament/:id/validate', authenticateAdmin, async (req, res) => {
   const tournament = req.tournament;
   const validation = validateTournamentSetup(tournament);
   res.json(validation);
 });
 
-// Preview schedule endpoint (creator only)
-app.post('/api/tournament/:id/preview-schedule', authenticateCreator, async (req, res) => {
+// Preview schedule endpoint (admin only)
+app.post('/api/tournament/:id/preview-schedule', authenticateAdmin, async (req, res) => {
   try {
     const tournament = req.tournament;
     
@@ -381,8 +686,8 @@ app.post('/api/tournament/:id/preview-schedule', authenticateCreator, async (req
   }
 });
 
-// Score game (creator only)
-app.post('/api/tournament/:id/score', authenticateCreator, async (req, res) => {
+// Score game (admin/scorer only)
+app.post('/api/tournament/:id/score', authenticateScorer, async (req, res) => {
   const { gameId, result } = req.body;
   const tournament = req.tournament;
   
@@ -409,7 +714,7 @@ app.post('/api/tournament/:id/score', authenticateCreator, async (req, res) => {
       await saveTournament(tournament.id, tournament);
       await addAuditEntry(tournament.id, {
         deviceId: req.deviceId,
-        deviceName: tournament.creatorName,
+        deviceName: req.device?.name || 'Admin',
         action: 'SCORE_GAME',
         details: {
           gameId,
@@ -440,8 +745,8 @@ app.post('/api/tournament/:id/score', authenticateCreator, async (req, res) => {
   res.json({ success: true });
 });
 
-// Timer control (creator only)
-app.post('/api/tournament/:id/round/:round/timer/start', authenticateCreator, async (req, res) => {
+// Timer control (admin only)
+app.post('/api/tournament/:id/round/:round/timer/start', authenticateAdmin, async (req, res) => {
   const { duration = 30 } = req.body;
   const tournament = req.tournament;
   const roundNum = parseInt(req.params.round);
@@ -505,8 +810,8 @@ app.get('/api/tournament/:id/round/:round/timer', authenticate, async (req, res)
   res.json(round.timer || { status: 'not-started' });
 });
 
-// Get audit log (creator only)
-app.get('/api/tournament/:id/audit', authenticateCreator, async (req, res) => {
+// Get audit log (admin only)
+app.get('/api/tournament/:id/audit', authenticateAdmin, async (req, res) => {
   try {
     const data = await fs.readFile(path.join(DATA_DIR, `${req.params.id}-audit.json`), 'utf8');
     res.json(JSON.parse(data));
@@ -595,8 +900,13 @@ app.post('/api/tournament/import', authenticate, async (req, res) => {
       // Override critical fields to ensure proper ownership and uniqueness
       id: newId,
       version: 2, // Ensure current version
-      creatorDeviceId: req.deviceId, // Set importing user as creator/owner
-      creatorName: deviceName,
+      adminDeviceId: req.deviceId, // Set importing user as admin
+      devices: [{
+        id: req.deviceId,
+        name: deviceName,
+        role: 'ADMIN'
+      }],
+      pendingRequests: [],
       isPublic: false, // Always import as private initially
       created: new Date().toISOString(),
       // Preserve original creation date as imported metadata if it exists
@@ -674,11 +984,10 @@ app.post('/api/tournament/import', authenticate, async (req, res) => {
   }
 });
 
-// Removed: Complex superuser system - no longer needed
-// Tournament creators have full control of their tournaments
 
-// Delete tournament (creator only)
-app.delete('/api/tournament/:id', authenticateCreator, async (req, res) => {
+
+// Delete tournament (admin only)
+app.delete('/api/tournament/:id', authenticateAdmin, async (req, res) => {
   const tournamentId = req.params.id;
   
   try {

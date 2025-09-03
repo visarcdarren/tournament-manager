@@ -12,7 +12,7 @@ import useDeviceStore from '@/stores/deviceStore'
 import MobileInstallBanner from '@/components/common/MobileInstallBanner'
 
 // Tournament card component for reuse
-function TournamentCard({ tournament, navigate, showOwnerControls }) {
+function TournamentCard({ tournament, navigate, showAdminControls }) {
   const { toast } = useToast()
   
   const deleteTournament = async (tournamentId, tournamentName) => {
@@ -41,7 +41,7 @@ function TournamentCard({ tournament, navigate, showOwnerControls }) {
   
   return (
     <Card className="transition-colors hover:bg-accent relative">
-      {showOwnerControls && (
+      {showAdminControls && (
         <div className="absolute top-2 right-2 flex gap-1 z-10">
           <Button
             variant="outline"
@@ -159,10 +159,8 @@ export default function TournamentList() {
         name: newTournamentName,
         settings: {
           teams: 4,
-          playersPerTeam: 2,
-          gameTypes: [
-
-          ],
+          playersPerTeam: 6,
+          gameTypes: [], // Start with empty game types array
           timer: {
             enabled: false,
             duration: 30
@@ -306,7 +304,7 @@ export default function TournamentList() {
                       key={tournament.id} 
                       tournament={tournament} 
                       navigate={navigate} 
-                      showOwnerControls={true} 
+                      showAdminControls={true} 
                     />
                   ))}
                 </div>
@@ -328,7 +326,7 @@ export default function TournamentList() {
                       key={tournament.id} 
                       tournament={tournament} 
                       navigate={navigate} 
-                      showOwnerControls={false} 
+                      showAdminControls={false} 
                     />
                   ))}
                 </div>

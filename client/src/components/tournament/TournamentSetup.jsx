@@ -11,8 +11,9 @@ import api from '@/utils/api'
 import useTournamentStore from '@/stores/tournamentStore'
 import GameTypeManager from './GameTypeManager'
 import ScheduleViewer from './ScheduleViewer'
+import AdminSharingDialog from './AdminSharingDialog'
 
-export default function TournamentSetup({ tournament, isAdmin, onNavigateToPlayers }) {
+export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, onNavigateToPlayers }) {
   const { toast } = useToast()
   const tournamentStore = useTournamentStore()
   const [settings, setSettings] = useState(() => {
@@ -464,6 +465,24 @@ export default function TournamentSetup({ tournament, isAdmin, onNavigateToPlaye
               gameTypes={settings.gameTypes}
               onChange={handleGameTypesChange}
               teams={tournament.teams}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Admin Sharing */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Admin Access</CardTitle>
+            <CardDescription>
+              Share admin access with other users via secure password-protected links
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AdminSharingDialog 
+              tournament={tournament} 
+              isOriginalAdmin={isOriginalAdmin}
             />
           </CardContent>
         </Card>

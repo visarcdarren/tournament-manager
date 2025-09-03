@@ -3,15 +3,42 @@ import { v4 as uuidv4 } from 'uuid';
 
 // Migrate old tournament format to new format
 export function migrateTournamentToV2(tournament) {
-  if (tournament.version === 2 && tournament.creatorDeviceId) return tournament;
+  // If already version 2, check for creatorDeviceId -> adminDeviceId migration
+  if (tournament.version === 2) {
+    if (tournament.creatorDeviceId && !tournament.adminDeviceId) {
+      // Migrate creatorDeviceId to adminDeviceId
+      tournament.adminDeviceId = tournament.creatorDeviceId;
+      
+      // Ensure devices array includes the admin
+      tournament.devices = tournament.devices || [];
+      const hasAdminDevice = tournament.devices.some(d => d.id === tournament.adminDeviceId && d.role === 'ADMIN');
+      if (!hasAdminDevice) {
+        tournament.devices.push({
+          id: tournament.adminDeviceId,
+          name: tournament.creatorName || 'Admin Device',
+          role: 'ADMIN'
+        });
+      }
+      
+      // Clean up old fields
+      delete tournament.creatorDeviceId;
+      delete tournament.creatorName;
+    }
+    return tournament;
+  }
   
-  // Create migrated tournament object
+  // Migrate from version 1 to version 2
   const migrated = {
     ...tournament,
     version: 2,
-    // Migrate old admin device ID to new creator device ID
-    creatorDeviceId: tournament.adminDeviceId || tournament.creatorDeviceId,
-    creatorName: tournament.devices?.[0]?.name || 'Tournament Creator',
+    // Use adminDeviceId (new standard) from either old adminDeviceId or creatorDeviceId
+    adminDeviceId: tournament.adminDeviceId || tournament.creatorDeviceId,
+    devices: tournament.devices || (tournament.adminDeviceId || tournament.creatorDeviceId ? [{
+      id: tournament.adminDeviceId || tournament.creatorDeviceId,
+      name: tournament.creatorName || tournament.devices?.[0]?.name || 'Admin Device',
+      role: 'ADMIN'
+    }] : []),
+    pendingRequests: tournament.pendingRequests || [],
     isPublic: tournament.isPublic || false,
     // Ensure playerPool exists
     playerPool: tournament.playerPool || [],
@@ -49,10 +76,9 @@ export function migrateTournamentToV2(tournament) {
     }
   };
   
-  // Remove old fields
-  delete migrated.adminDeviceId;
-  delete migrated.devices;
-  delete migrated.pendingRequests;
+  // Clean up old fields
+  delete migrated.creatorDeviceId;
+  delete migrated.creatorName;
   if (migrated.settings.equipment) {
     delete migrated.settings.equipment;
   }
