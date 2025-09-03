@@ -648,6 +648,114 @@ app.post('/api/tournament/:id/generate-schedule', authenticateAdmin, async (req,
   }
 });
 
+// Reset tournament progress (admin only)
+app.post('/api/tournament/:id/reset', authenticateAdmin, async (req, res) => {
+  try {
+    const tournament = req.tournament;
+    
+    // Reset tournament to setup state
+    tournament.currentState = {
+      status: 'setup'
+    };
+    
+    // Clear all game results but keep the schedule structure
+    if (tournament.schedule) {
+      tournament.schedule = tournament.schedule.map(round => ({
+        ...round,
+        timer: null,
+        status: undefined,
+        games: round.games.map(game => ({
+          ...game,
+          result: null,
+          status: 'pending'
+        }))
+      }));
+    }
+    
+    await saveTournament(tournament.id, tournament);
+    await addAuditEntry(tournament.id, {
+      deviceId: req.deviceId,
+      deviceName: req.device?.name || 'Admin',
+      action: 'RESET_TOURNAMENT',
+      details: {
+        previousStatus: req.tournament.currentState?.status,
+        clearedGames: tournament.schedule ? tournament.schedule.reduce((sum, round) => sum + round.games.length, 0) : 0
+      }
+    });
+    
+    // Broadcast update
+    broadcastToTournament(tournament.id, {
+      type: 'tournament-reset',
+      data: tournament
+    });
+    
+    res.json({ success: true, message: 'Tournament reset to setup state' });
+  } catch (error) {
+    console.error('Tournament reset error:', error);
+    res.status(500).json({ 
+      error: 'Failed to reset tournament',
+      message: error.message 
+    });
+  }
+});
+
+// Regenerate schedule (admin only) - for tournaments that haven't started
+app.post('/api/tournament/:id/reschedule', authenticateAdmin, async (req, res) => {
+  try {
+    const tournament = req.tournament;
+    
+    // Only allow reschedule if tournament hasn't started
+    if (tournament.currentState?.status !== 'setup') {
+      return res.status(400).json({ 
+        error: 'Cannot reschedule a tournament that has already started. Use reset first to return to setup.' 
+      });
+    }
+    
+    // Validate setup first
+    const validation = validateTournamentSetup(tournament);
+    if (!validation.valid) {
+      return res.status(400).json({ 
+        error: 'Invalid tournament setup',
+        details: validation
+      });
+    }
+    
+    // Generate new schedule
+    const schedule = generateSchedule(tournament);
+    tournament.schedule = schedule;
+    
+    await saveTournament(tournament.id, tournament);
+    await addAuditEntry(tournament.id, {
+      deviceId: req.deviceId,
+      deviceName: req.device?.name || 'Admin',
+      action: 'RESCHEDULE_TOURNAMENT',
+      details: { 
+        rounds: schedule.length,
+        totalGames: schedule.reduce((sum, round) => sum + round.games.length, 0)
+      }
+    });
+    
+    // Broadcast update
+    broadcastToTournament(tournament.id, {
+      type: 'tournament-rescheduled',
+      data: tournament
+    });
+    
+    res.json({ 
+      success: true, 
+      schedule,
+      validation,
+      message: 'Tournament schedule regenerated successfully'
+    });
+  } catch (error) {
+    console.error('Reschedule error:', error);
+    res.status(500).json({ 
+      error: 'Failed to reschedule tournament',
+      message: error.message 
+    });
+  }
+});
+
 // Validate tournament setup endpoint (admin only)
 app.post('/api/tournament/:id/validate', authenticateAdmin, async (req, res) => {
   const tournament = req.tournament;
