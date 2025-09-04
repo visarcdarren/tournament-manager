@@ -1,27 +1,41 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { playSound } from '@/utils/tournament'
 
 export default function CountdownOverlay({ onComplete }) {
   const [count, setCount] = useState(5)
+  const onCompleteRef = useRef(onComplete)
+  
+  // Update ref when onComplete changes
+  useEffect(() => {
+    onCompleteRef.current = onComplete
+  }, [onComplete])
   
   useEffect(() => {
-    if (count > 0) {
+    // Play sound only for numbers, not GO!
+    if (typeof count === 'number' && count > 0) {
       playSound('countdown')
     }
     
-    const timer = setTimeout(() => {
-      if (count > 1) {
-        setCount(count - 1)
-      } else if (count === 1) {
-        setCount('GO!')
-        setTimeout(() => {
-          onComplete()
-        }, 1000)
-      }
-    }, 1000)
+    if (count === 'GO!') {
+      // GO! is showing, complete after a short delay
+      const timer = setTimeout(() => {
+        onCompleteRef.current()
+      }, 500)
+      return () => clearTimeout(timer)
+    }
     
-    return () => clearTimeout(timer)
-  }, [count, onComplete])
+    if (count > 0) {
+      // Count down or show GO!
+      const timer = setTimeout(() => {
+        if (count > 1) {
+          setCount(count - 1)
+        } else {
+          setCount('GO!')
+        }
+      }, 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [count]) // Only depend on count, not onComplete
   
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
