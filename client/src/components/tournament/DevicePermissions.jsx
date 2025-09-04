@@ -1,14 +1,59 @@
-import React, { useState, useEffect } from 'react'
-import { Shield, Users, Eye, Trash2, AlertCircle } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Shield, Users, Eye, Trash2, AlertCircle, Globe, Lock, Share2, Download, QrCode, Copy } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import api from '@/utils/api'
+import AdminSharingDialog from './AdminSharingDialog'
+import QRCode from 'qrcode'
 
-export default function DevicePermissions({ tournament, isOriginalAdmin }) {
+export default function SharingAndDevices({ tournament, isOriginalAdmin, onTogglePublicStatus, onShare }) {
   const { toast } = useToast()
   const [pendingRequests, setPendingRequests] = useState([])
   const [isLoading, setIsLoading] = useState(false)
+  const [qrCodeUrl, setQrCodeUrl] = useState('')
+  const qrCanvasRef = useRef(null)
+  
+  // Generate QR code when tournament becomes public
+  useEffect(() => {
+    if (tournament.isPublic) {
+      generateQRCode()
+    }
+  }, [tournament.isPublic, tournament.id])
+  
+  const generateQRCode = async () => {
+    try {
+      const shareUrl = `${window.location.origin}/tournament/${tournament.id}`
+      const qrDataUrl = await QRCode.toDataURL(shareUrl, {
+        width: 200,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff'
+        }
+      })
+      setQrCodeUrl(qrDataUrl)
+    } catch (error) {
+      console.error('Failed to generate QR code:', error)
+    }
+  }
+  
+  const copyShareLink = async () => {
+    try {
+      const shareUrl = `${window.location.origin}/tournament/${tournament.id}`
+      await navigator.clipboard.writeText(shareUrl)
+      toast({
+        title: 'Link Copied!',
+        description: 'Tournament link copied to clipboard'
+      })
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Could not copy to clipboard',
+        variant: 'destructive'
+      })
+    }
+  }
 
   useEffect(() => {
     if (isOriginalAdmin) {
@@ -77,12 +122,151 @@ export default function DevicePermissions({ tournament, isOriginalAdmin }) {
 
   return (
     <div className="space-y-6">
+      {/* Access Management - moved from TournamentSetup */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Tournament Sharing</CardTitle>
+          <CardDescription>
+            Control who can access your tournament and how they can interact with it
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Public/Private Status */}
+          <div className="space-y-4">
+            <h4 className="font-semibold text-base">Tournament Visibility</h4>
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-1">
+                <div className="font-medium flex items-center gap-2">
+                  {tournament.isPublic ? (
+                    <>
+                      <Globe className="h-4 w-4 text-green-600" />
+                      Public Tournament
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="h-4 w-4 text-gray-500" />
+                      Private Tournament
+                    </>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {tournament.isPublic 
+                    ? 'Anyone with the link can view tournament progress in real-time'
+                    : 'Only you and shared admins can access this tournament'
+                  }
+                </p>
+                {!tournament.isPublic && (!tournament.schedule || tournament.schedule.length === 0) && (
+                  <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                    ⚠️ Generate a schedule before making the tournament public so viewers have something meaningful to see.
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                {tournament.isPublic && (
+                  <Button variant="outline" onClick={onShare} size="sm">
+                    <Share2 className="mr-2 h-4 w-4" />
+                    Share
+                  </Button>
+                )}
+                <Button 
+                  variant="outline" 
+                  onClick={onTogglePublicStatus} 
+                  size="sm"
+                  disabled={!tournament.isPublic && (!tournament.schedule || tournament.schedule.length === 0)}
+                  title={!tournament.isPublic && (!tournament.schedule || tournament.schedule.length === 0) ? "Schedule must be generated before making tournament public" : ""}
+                >
+                  {tournament.isPublic ? (
+                    <>
+                      <Lock className="mr-2 h-4 w-4" />
+                      Make Private
+                    </>
+                  ) : (
+                    <>
+                      <Globe className="mr-2 h-4 w-4" />
+                      Make Public
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          {/* QR Code Section - only show when public */}
+          {tournament.isPublic && (
+            <div className="space-y-4">
+              <h4 className="font-semibold text-base">Quick Access</h4>
+              <div className="flex flex-col sm:flex-row gap-4 p-4 border rounded-lg bg-green-50 border-green-200">
+                <div className="flex-shrink-0">
+                  {qrCodeUrl ? (
+                    <div className="space-y-2">
+                      <img 
+                        src={qrCodeUrl} 
+                        alt="QR Code for tournament link" 
+                        className="w-32 h-32 sm:w-40 sm:h-40 border border-gray-200 rounded-lg bg-white p-2"
+                      />
+                      <p className="text-xs text-center text-green-700">Scan to view tournament</p>
+                    </div>
+                  ) : (
+                    <div className="w-32 h-32 sm:w-40 sm:h-40 border border-gray-200 rounded-lg bg-white flex items-center justify-center">
+                      <QrCode className="h-8 w-8 text-gray-400" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 space-y-3">
+                  <div>
+                    <h5 className="font-medium text-green-900">Share with QR Code</h5>
+                    <p className="text-sm text-green-700">
+                      Others can quickly scan this code with their phone camera to access the tournament instantly.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-green-800">Tournament Link:</label>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        value={`${window.location.origin}/tournament/${tournament.id}`}
+                        readOnly
+                        className="flex-1 px-3 py-2 text-xs border rounded-md bg-white text-gray-700 min-w-0"
+                        onClick={(e) => e.target.select()}
+                      />
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={copyShareLink}
+                        className="flex-shrink-0"
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Admin Sharing */}
+          <div className="space-y-4">
+            <h4 className="font-semibold text-base">Admin Sharing</h4>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Grant admin access to other users via secure password-protected links. 
+                Admins can modify tournament settings, manage teams, and control all aspects of the tournament.
+              </p>
+              <AdminSharingDialog 
+                tournament={tournament} 
+                isOriginalAdmin={isOriginalAdmin}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Connected Devices */}
       <Card>
         <CardHeader>
-          <CardTitle>Connected Devices</CardTitle>
+          <CardTitle>Device Permissions</CardTitle>
           <CardDescription>
-            Manage device permissions and scorer access
+            Manage device access and scorer permissions for tournament operations
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -9,7 +9,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['vite.svg', 'icon-192.png', 'icon-512.png'],
+      includeAssets: ['icon-192.png', 'icon-512.png'],
       manifest: {
         name: 'Tournament Manager',
         short_name: 'TournamentMgr',
@@ -46,12 +46,6 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
-          },
-          {
-            src: '/vite.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'any'
           }
         ],
         shortcuts: [
@@ -60,7 +54,7 @@ export default defineConfig({
             short_name: 'New',
             description: 'Create a new tournament',
             url: '/?action=new',
-            icons: [{ src: '/vite.svg', sizes: '96x96' }]
+            icons: [{ src: '/icon-192.png', sizes: '192x192' }]
           }
         ]
       },

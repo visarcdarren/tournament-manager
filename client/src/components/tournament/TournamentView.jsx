@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Eye, Download, Trash2, Calendar, Globe, Lock, Share, User, Shield, Menu, X } from 'lucide-react'
+import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Eye, Download, Trash2, Calendar, Globe, Lock, Share2, User, Shield, Menu, X, QrCode, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -22,8 +22,9 @@ import Leaderboard from './Leaderboard'
 import CompletionScreen from './CompletionScreen'
 import PlayerPoolManager from './PlayerPoolManager'
 import ScheduleViewer from './ScheduleViewer'
-import DevicePermissions from './DevicePermissions'
+import SharingAndDevices from './DevicePermissions'
 import { getCurrentRound, isTournamentComplete } from '@/utils/tournament'
+import QRCode from 'qrcode'
 
 export default function TournamentView({ tournamentId }) {
   const navigate = useNavigate()
@@ -35,6 +36,7 @@ export default function TournamentView({ tournamentId }) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showShareDialog, setShowShareDialog] = useState(false)
+  const [shareQrCodeUrl, setShareQrCodeUrl] = useState('')
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   
   const { tournament, userRole, isLoading } = tournamentStore
@@ -55,6 +57,31 @@ export default function TournamentView({ tournamentId }) {
       tournamentStore.reset()
     }
   }, [tournamentId])
+  
+  // Generate QR code for share modal
+  const generateShareQRCode = async () => {
+    try {
+      const shareUrl = `${window.location.origin}/tournament/${tournamentId}`
+      const qrDataUrl = await QRCode.toDataURL(shareUrl, {
+        width: 256,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff'
+        }
+      })
+      setShareQrCodeUrl(qrDataUrl)
+    } catch (error) {
+      console.error('Failed to generate QR code for share modal:', error)
+    }
+  }
+  
+  // Generate QR code when share dialog opens
+  useEffect(() => {
+    if (showShareDialog) {
+      generateShareQRCode()
+    }
+  }, [showShareDialog])
   
   // Reset manual flag when tournament status changes significantly
   useEffect(() => {
@@ -338,7 +365,7 @@ export default function TournamentView({ tournamentId }) {
     if (isInSetupPhase) {
       // Setup phase: Devices in hamburger (since Setup, Players, Teams are in bottom nav)
       return isAdmin ? [
-        { id: 'devices', icon: Shield, label: 'Devices' }
+        { id: 'devices', icon: Share2, label: 'Share' }
       ] : []
     } else {
       // Active/Running phase: Admin tabs in hamburger (since Schedule, Live, Leaderboard/Results are in bottom nav)
@@ -346,7 +373,7 @@ export default function TournamentView({ tournamentId }) {
       if (isAdmin) {
         items.push(
           { id: 'setup', icon: Settings, label: 'Setup' },
-          { id: 'devices', icon: Shield, label: 'Devices' },
+          { id: 'devices', icon: Share2, label: 'Share' },
           { id: 'players', icon: User, label: 'Players' },
           { id: 'teams', icon: Users, label: 'Teams' }
         )
@@ -580,8 +607,8 @@ export default function TournamentView({ tournamentId }) {
                     <span className="text-xs sm:text-sm">Setup</span>
                   </TabsTrigger>
                   <TabsTrigger value="devices" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
-                    <Shield className="h-4 w-4 flex-shrink-0" />
-                    <span className="text-xs sm:text-sm">Devices</span>
+                    <Share2 className="h-4 w-4 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm">Share</span>
                   </TabsTrigger>
                   <TabsTrigger value="players" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
                     <User className="h-4 w-4 flex-shrink-0" />
@@ -626,10 +653,8 @@ export default function TournamentView({ tournamentId }) {
                       manualTabChangeRef.current = true
                       setActiveTab('players')
                     }}
-                    onTogglePublicStatus={togglePublicStatus}
                     onExportTournament={exportTournament}
                     onDeleteTournament={() => setShowDeleteDialog(true)}
-                    onShare={handleShare}
                   />
                 </TabsContent>
                 
@@ -656,9 +681,11 @@ export default function TournamentView({ tournamentId }) {
                 </TabsContent>
                 
                 <TabsContent value="devices">
-                  <DevicePermissions 
+                  <SharingAndDevices 
                     tournament={tournament} 
                     isOriginalAdmin={isOriginalAdmin}
+                    onTogglePublicStatus={togglePublicStatus}
+                    onShare={handleShare}
                   />
                 </TabsContent>
               </>
@@ -799,7 +826,7 @@ export default function TournamentView({ tournamentId }) {
         <DialogContent className="mx-4 max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Share className="h-5 w-5" />
+              <Share2 className="h-5 w-5" />
               Share Tournament
             </DialogTitle>
             <DialogDescription>
@@ -807,6 +834,25 @@ export default function TournamentView({ tournamentId }) {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* QR Code Section */}
+            <div className="flex flex-col items-center space-y-3">
+              {shareQrCodeUrl ? (
+                <div className="space-y-2">
+                  <img 
+                    src={shareQrCodeUrl} 
+                    alt="QR Code for tournament link" 
+                    className="w-48 h-48 border border-gray-200 rounded-lg bg-white p-3"
+                  />
+                  <p className="text-xs text-center text-muted-foreground">Scan with phone camera to view tournament</p>
+                </div>
+              ) : (
+                <div className="w-48 h-48 border border-gray-200 rounded-lg bg-white flex items-center justify-center">
+                  <QrCode className="h-12 w-12 text-gray-400" />
+                </div>
+              )}
+            </div>
+            
+            {/* Link Section */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Tournament Link:</label>
               <div className="flex flex-col sm:flex-row gap-2">
@@ -837,6 +883,7 @@ export default function TournamentView({ tournamentId }) {
                   }}
                   className="w-full sm:w-auto flex-shrink-0"
                 >
+                  <Copy className="mr-2 h-3 w-3" />
                   Copy
                 </Button>
               </div>
@@ -865,7 +912,7 @@ export default function TournamentView({ tournamentId }) {
                 }}
                 className="w-full"
               >
-                <Share className="mr-2 h-4 w-4" />
+                <Share2 className="mr-2 h-4 w-4" />
                 Share via Apps
               </Button>
             )}
