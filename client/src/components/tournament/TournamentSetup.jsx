@@ -80,7 +80,7 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
   const handleSettingChange = (field, value) => {
     setSettings(prev => ({
       ...prev,
-      [field]: parseInt(value) || value
+      [field]: value === '' ? '' : (parseInt(value) || value)
     }))
   }
   
@@ -89,7 +89,7 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
       ...prev,
       scoring: {
         ...prev.scoring,
-        [field]: parseInt(value) || 0
+        [field]: value === '' ? '' : (parseInt(value) || 0)
       }
     }))
   }
@@ -99,7 +99,7 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
       ...prev,
       timer: {
         ...prev.timer,
-        [field]: field === 'duration' ? parseInt(value) || 30 : value
+        [field]: field === 'duration' ? (value === '' ? '' : parseInt(value) || 30) : value
       }
     }))
   }
@@ -135,14 +135,35 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
   const saveSettings = async () => {
     try {
       setIsSaving(true)
+      
+      // Clean up settings before saving, converting empty strings to appropriate defaults
+      const cleanedSettings = {
+        ...settings,
+        teams: settings.teams === '' ? 2 : parseInt(settings.teams) || 2,
+        playersPerTeam: settings.playersPerTeam === '' ? 1 : parseInt(settings.playersPerTeam) || 1,
+        rounds: settings.rounds === '' ? 1 : parseInt(settings.rounds) || 1,
+        timer: {
+          ...settings.timer,
+          duration: settings.timer.duration === '' ? 30 : parseInt(settings.timer.duration) || 30
+        },
+        scoring: {
+          win: settings.scoring.win === '' ? 3 : parseInt(settings.scoring.win) || 0,
+          draw: settings.scoring.draw === '' ? 1 : parseInt(settings.scoring.draw) || 0,
+          loss: settings.scoring.loss === '' ? 0 : parseInt(settings.scoring.loss) || 0
+        }
+      }
+      
       const updatedTournament = {
         ...tournament,
         name: tournamentName,
-        settings
+        settings: cleanedSettings
       }
       
       await api.updateTournament(tournament.id, updatedTournament)
       tournamentStore.setTournament(updatedTournament)
+      
+      // Update local state with cleaned values
+      setSettings(cleanedSettings)
       
       toast({
         title: 'Success',
@@ -162,14 +183,35 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
   const saveAndEditPlayers = async () => {
     try {
       setIsSaving(true)
+      
+      // Clean up settings before saving, converting empty strings to appropriate defaults
+      const cleanedSettings = {
+        ...settings,
+        teams: settings.teams === '' ? 2 : parseInt(settings.teams) || 2,
+        playersPerTeam: settings.playersPerTeam === '' ? 1 : parseInt(settings.playersPerTeam) || 1,
+        rounds: settings.rounds === '' ? 1 : parseInt(settings.rounds) || 1,
+        timer: {
+          ...settings.timer,
+          duration: settings.timer.duration === '' ? 30 : parseInt(settings.timer.duration) || 30
+        },
+        scoring: {
+          win: settings.scoring.win === '' ? 3 : parseInt(settings.scoring.win) || 0,
+          draw: settings.scoring.draw === '' ? 1 : parseInt(settings.scoring.draw) || 0,
+          loss: settings.scoring.loss === '' ? 0 : parseInt(settings.scoring.loss) || 0
+        }
+      }
+      
       const updatedTournament = {
         ...tournament,
         name: tournamentName,
-        settings
+        settings: cleanedSettings
       }
       
       await api.updateTournament(tournament.id, updatedTournament)
       tournamentStore.setTournament(updatedTournament)
+      
+      // Update local state with cleaned values
+      setSettings(cleanedSettings)
       
       toast({
         title: 'Success',
@@ -390,19 +432,23 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
   const validateBasicSettings = () => {
     const errors = []
     
-    if (!settings.teams || settings.teams < 2) {
+    const teams = settings.teams === '' ? 0 : parseInt(settings.teams) || 0
+    const playersPerTeam = settings.playersPerTeam === '' ? 0 : parseInt(settings.playersPerTeam) || 0
+    const rounds = settings.rounds === '' ? 0 : parseInt(settings.rounds) || 0
+    
+    if (!teams || teams < 2) {
       errors.push('At least 2 teams required')
-    } else if (settings.teams > 10) {
+    } else if (teams > 10) {
       errors.push('Maximum 10 teams allowed')
     }
     
-    if (!settings.playersPerTeam || settings.playersPerTeam < 1) {
+    if (!playersPerTeam || playersPerTeam < 1) {
       errors.push('At least 1 player per team required')
     }
     
-    if (!settings.rounds || settings.rounds < 1) {
+    if (!rounds || rounds < 1) {
       errors.push('At least 1 round required')
-    } else if (settings.rounds > 20) {
+    } else if (rounds > 20) {
       errors.push('Maximum 20 rounds allowed')
     }
     
