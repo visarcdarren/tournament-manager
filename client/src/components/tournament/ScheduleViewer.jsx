@@ -50,9 +50,27 @@ function PlayerCombobox({ value, onSelect, players, placeholder = "Select or typ
       }
     }
     
+    // Prevent page scroll when dropdown is open on mobile
+    const preventPageScroll = (e) => {
+      if (isOpen && dropdownRef.current && dropdownRef.current.contains(e.target)) {
+        e.stopPropagation()
+      }
+    }
+    
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    
+    // Add touch event listeners for mobile scroll prevention
+    if (isOpen) {
+      document.addEventListener('touchmove', preventPageScroll, { passive: false })
+      document.addEventListener('touchstart', preventPageScroll, { passive: false })
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchmove', preventPageScroll)
+      document.removeEventListener('touchstart', preventPageScroll)
+    }
+  }, [isOpen])
   
   // Reset when value prop changes
   useEffect(() => {
@@ -78,6 +96,12 @@ function PlayerCombobox({ value, onSelect, players, placeholder = "Select or typ
         <div 
           ref={dropdownRef}
           className="absolute z-50 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-48 overflow-y-auto"
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          style={{
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain'
+          }}
         >
           {filteredPlayers.map(player => (
             <button
