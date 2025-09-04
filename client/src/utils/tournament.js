@@ -244,11 +244,19 @@ export function calculateScores(tournament) {
 export function isTournamentComplete(tournament) {
   if (!tournament?.schedule) return false
   
-  // Tournament is complete if currentState says so, or if all rounds have all games with results
+  // Tournament is complete if currentState says so
   if (tournament.currentState?.status === 'completed') return true
   
+  // If schedule is empty or has no games, tournament is NOT complete
+  if (tournament.schedule.length === 0) return false
+  
+  // Check if there are any games at all
+  const totalGames = tournament.schedule.reduce((sum, round) => sum + (round.games?.length || 0), 0)
+  if (totalGames === 0) return false
+  
+  // Tournament is complete only if ALL games have results
   return tournament.schedule.every(round =>
-    round.games.every(game => game.result) // Check for results instead of status
+    round.games && round.games.length > 0 && round.games.every(game => game.result)
   )
 }
 

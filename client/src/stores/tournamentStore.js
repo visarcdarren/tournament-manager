@@ -19,7 +19,21 @@ const useTournamentStore = create((set, get) => ({
   pendingRequests: [],
   
   // Set tournament data
-  setTournament: (tournament) => set({ tournament }),
+  setTournament: (tournament) => set((state) => {
+    // Initialize timer status from server data
+    const timerStatus = {}
+    if (tournament?.schedule) {
+      tournament.schedule.forEach(round => {
+        if (round.timer) {
+          // Use server timer state as source of truth
+          timerStatus[round.round] = { ...round.timer }
+        } else {
+          timerStatus[round.round] = { status: 'not-started' }
+        }
+      })
+    }
+    return { tournament, timerStatus }
+  }),
   
   // Set user role
   setUserRole: (role) => set({ userRole: role }),

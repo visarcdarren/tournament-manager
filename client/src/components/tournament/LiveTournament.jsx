@@ -266,8 +266,8 @@ export default function LiveTournament({ tournament, currentRound, isAdmin, isSc
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
               {timerEnabled && (
                 <>
-                  <RoundTimer round={currentRound} tournamentId={tournament.id} />
-                  {isAdmin && round.timer?.status === 'not-started' && (
+                  <RoundTimer round={currentRound} tournamentId={tournament.id} isAdmin={isAdmin} />
+                  {isAdmin && (!tournamentStore.timerStatus[currentRound] || tournamentStore.timerStatus[currentRound].status === 'not-started') && (
                     <div className="flex flex-col sm:flex-row items-center gap-2">
                       <div className="flex items-center gap-2">
                         <Input

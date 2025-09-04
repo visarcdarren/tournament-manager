@@ -139,8 +139,37 @@ export default function TournamentView({ tournamentId }) {
           expiresAt: data.expiresAt 
         })
       },
+      'timer-state': (data) => {
+        // Handle timer state updates for late joiners
+        tournamentStore.updateTimerStatus(data.round, data.timer)
+      },
+      'timer-paused': (data) => {
+        tournamentStore.updateTimerStatus(data.round, data.timer)
+        toast({
+          title: 'Timer Paused',
+          description: `Round ${data.round} timer was paused`
+        })
+      },
+      'timer-reset': (data) => {
+        tournamentStore.updateTimerStatus(data.round, { status: 'not-started' })
+        toast({
+          title: 'Timer Reset',
+          description: `Round ${data.round} timer was reset`
+        })
+      },
+      'timer-expired': (data) => {
+        tournamentStore.updateTimerStatus(data.round, { status: 'expired' })
+        toast({
+          title: 'Time\'s Up!',
+          description: `Round ${data.round} timer has expired`
+        })
+      },
       'tournament-reset': (data) => {
         tournamentStore.setTournament(data)
+        // Clear all timer states when tournament is reset
+        Object.keys(tournamentStore.timerStatus).forEach(round => {
+          tournamentStore.updateTimerStatus(parseInt(round), { status: 'not-started' })
+        })
         toast({
           title: 'Tournament Reset',
           description: 'Tournament has been reset to setup state',

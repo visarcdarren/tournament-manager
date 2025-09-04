@@ -166,6 +166,24 @@ class TournamentAPI {
     })
   }
   
+  async pauseTimer(tournamentId, round) {
+    return this.fetch(`/tournament/${tournamentId}/round/${round}/timer/pause`, {
+      method: 'POST'
+    })
+  }
+  
+  async resumeTimer(tournamentId, round) {
+    return this.fetch(`/tournament/${tournamentId}/round/${round}/timer/resume`, {
+      method: 'POST'
+    })
+  }
+  
+  async resetTimer(tournamentId, round) {
+    return this.fetch(`/tournament/${tournamentId}/round/${round}/timer/reset`, {
+      method: 'POST'
+    })
+  }
+  
   async getTimerStatus(tournamentId, round) {
     return this.fetch(`/tournament/${tournamentId}/round/${round}/timer`)
   }

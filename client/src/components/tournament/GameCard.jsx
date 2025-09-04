@@ -87,7 +87,7 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon, 
     : game.player2?.teamName || ''
   
   return (
-    <Card>
+    <Card className={game.result ? 'ring-1 ring-green-600/20' : ''}>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center justify-between text-sm sm:text-base">
           <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -95,7 +95,12 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon, 
             <span className="truncate font-medium">{game.stationName || game.station}</span>
     
           </div>
-          {game.result && <Check className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 flex-shrink-0" />}
+          {game.result && (
+            <div className="flex items-center gap-1">
+              <Check className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 flex-shrink-0 animate-pulse" />
+              <span className="text-xs text-green-600 font-medium hidden sm:inline">Complete</span>
+            </div>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -151,8 +156,8 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon, 
           </div>
         </div>
         
-        {/* Scoring Buttons */}
-        {canScore && (
+        {/* Scoring Buttons or Result Display */}
+        {canScore ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <Button
               variant={"outline"}
@@ -193,6 +198,29 @@ export default function GameCard({ game, isScorer, isAdmin, onSwapPlayer, icon, 
             >
               <span className="truncate">{team2Name} Wins</span>
             </Button>
+          </div>
+        ) : (
+          /* Result Display for Viewers */
+          <div className="text-center py-3">
+            {game.result ? (
+              <div className="relative">
+                <div className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-green-900/40 to-green-800/40 text-green-300 border border-green-600/50 shadow-lg">
+                  <Check className="h-5 w-5 animate-bounce" />
+                  <span className="font-bold text-base">
+                    {(game.result === 'team1-win' || game.result === 'player1-win') && `🏆 ${team1Name} Wins!`}
+                    {(game.result === 'team2-win' || game.result === 'player2-win') && `🏆 ${team2Name} Wins!`}
+                    {game.result === 'draw' && '🤝 Draw!'}
+                  </span>
+                </div>
+                {/* Subtle glow effect */}
+                <div className="absolute inset-0 rounded-lg bg-green-600/20 animate-pulse -z-10"></div>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800/50 text-muted-foreground text-sm border border-slate-600/30">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                <span>Game in progress...</span>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
