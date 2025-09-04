@@ -161,6 +161,81 @@ async function authenticateScorer(req, res, next) {
 
 // Routes
 
+// Advance to next round (admin only)
+app.post('/api/tournament/:id/advance-round', authenticateAdmin, async (req, res) => {
+  try {
+    const tournament = req.tournament;
+    const { currentRound, nextRound } = req.body;
+    
+    // Validate the advancement
+    if (!currentRound || !nextRound) {
+      return res.status(400).json({ error: 'Current round and next round must be specified' });
+    }
+    
+    // Verify the current round is complete
+    const roundData = tournament.schedule?.find(r => r.round === currentRound);
+    if (!roundData) {
+      return res.status(404).json({ error: 'Current round not found' });
+    }
+    
+    const allGamesScored = roundData.games.every(game => game.result);
+    if (!allGamesScored) {
+      return res.status(400).json({ error: 'Current round is not complete' });
+    }
+    
+    // Mark current round as completed
+    const roundIndex = tournament.schedule.findIndex(r => r.round === currentRound);
+    if (roundIndex !== -1) {
+      tournament.schedule[roundIndex].status = 'completed';
+    }
+    
+    // Advance to next round or complete tournament
+    if (nextRound <= tournament.settings.rounds) {
+      tournament.currentState = {
+        ...tournament.currentState,
+        currentRound: nextRound
+      };
+    } else {
+      tournament.currentState = {
+        ...tournament.currentState,
+        status: 'completed'
+      };
+    }
+    
+    await saveTournament(tournament.id, tournament);
+    await addAuditEntry(tournament.id, {
+      deviceId: req.deviceId,
+      deviceName: req.device?.name || 'Admin',
+      action: 'ADVANCE_ROUND',
+      details: {
+        completedRound: currentRound,
+        newRound: nextRound,
+        tournamentCompleted: nextRound > tournament.settings.rounds
+      }
+    });
+    
+    // Broadcast round advancement to all viewers
+    broadcastToTournament(tournament.id, {
+      type: 'round-advanced',
+      data: {
+        completedRound: currentRound,
+        newCurrentRound: nextRound <= tournament.settings.rounds ? nextRound : null,
+        tournamentCompleted: nextRound > tournament.settings.rounds,
+        tournament
+      }
+    });
+    
+    res.json({ success: true, tournament });
+    
+  } catch (error) {
+    console.error('Round advancement error:', error);
+    res.status(500).json({ 
+      error: 'Failed to advance round',
+      message: error.message 
+    });
+  }
+});
+
 // Get team names data for name generation
 app.get('/api/team-names', async (req, res) => {
   try {
@@ -330,6 +405,15 @@ app.put('/api/tournament/:id', authenticateAdmin, async (req, res) => {
 // Toggle tournament public/private status (admin only)
 app.post('/api/tournament/:id/toggle-public', authenticateAdmin, async (req, res) => {
   const tournament = req.tournament;
+  
+  // If making public, check if schedule exists
+  if (!tournament.isPublic && (!tournament.schedule || tournament.schedule.length === 0)) {
+    return res.status(400).json({ 
+      error: 'Schedule must be generated before making tournament public',
+      details: 'Viewers need a schedule to view tournament progress meaningfully.' 
+    });
+  }
+  
   tournament.isPublic = !tournament.isPublic;
   
   await saveTournament(tournament.id, tournament);
@@ -637,7 +721,7 @@ app.post('/api/tournament/:id/generate-schedule', authenticateAdmin, async (req,
     // Activate the tournament with the existing schedule
     tournament.currentState = {
       status: 'active',
-      currentRound: 1
+      currentRound: tournament.currentState?.currentRound || 1
     };
     
     await saveTournament(tournament.id, tournament);
@@ -876,18 +960,22 @@ app.post('/api/tournament/:id/score', authenticateScorer, async (req, res) => {
         game.team2Players.map(p => `${p.playerName} (${p.teamName})`).join(' & ') :
         `${game.player2.playerName} (${game.player2.teamName})`;
       
-      // Check if all games are now completed
+      // Check if all games in this round are now completed
+      const roundGamesComplete = round.games.every(game => game.result);
+      
+      // Check if all games in tournament are now completed
       const allGamesComplete = tournament.schedule.every(round =>
         round.games.every(game => game.result)
       );
       
-      // Update tournament status if all games are complete
+      // Update tournament status but don't auto-advance rounds
       if (allGamesComplete && tournament.currentState.status !== 'completed') {
         tournament.currentState = {
           ...tournament.currentState,
           status: 'completed'
         };
       }
+      // Note: Round advancement is now handled manually by admin through the UI
       
       await saveTournament(tournament.id, tournament);
       await addAuditEntry(tournament.id, {
@@ -903,6 +991,7 @@ app.post('/api/tournament/:id/score', authenticateScorer, async (req, res) => {
           team2: team2Names,
           result,
           previousResult,
+          roundCompleted: roundGamesComplete,
           tournamentCompleted: allGamesComplete
         }
       });
@@ -910,8 +999,19 @@ app.post('/api/tournament/:id/score', authenticateScorer, async (req, res) => {
       // Broadcast update
       broadcastToTournament(tournament.id, {
         type: 'game-scored',
-        data: { gameId, result, round: round.round, tournamentCompleted: allGamesComplete }
+        data: { gameId, result, round: round.round, roundCompleted: roundGamesComplete, tournamentCompleted: allGamesComplete }
       });
+      
+      // If round just completed, broadcast round completion event
+      if (roundGamesComplete) {
+        broadcastToTournament(tournament.id, {
+          type: 'round-completed',
+          data: { 
+            completedRound: round.round,
+            tournament 
+          }
+        });
+      }
       
       // If tournament just completed, broadcast completion event
       if (allGamesComplete && tournament.currentState.status === 'completed') {

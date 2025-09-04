@@ -668,6 +668,11 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
                       : 'Only you and shared admins can access this tournament'
                     }
                   </p>
+                  {!tournament.isPublic && (!tournament.schedule || tournament.schedule.length === 0) && (
+                    <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                      ⚠️ Generate a schedule before making the tournament public so viewers have something meaningful to see.
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   {tournament.isPublic && (
@@ -676,7 +681,13 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
                       Share
                     </Button>
                   )}
-                  <Button variant="outline" onClick={onTogglePublicStatus} size="sm">
+                  <Button 
+                    variant="outline" 
+                    onClick={onTogglePublicStatus} 
+                    size="sm"
+                    disabled={!tournament.isPublic && (!tournament.schedule || tournament.schedule.length === 0)}
+                    title={!tournament.isPublic && (!tournament.schedule || tournament.schedule.length === 0) ? "Schedule must be generated before making tournament public" : ""}
+                  >
                     {tournament.isPublic ? (
                       <>
                         <Lock className="mr-2 h-4 w-4" />

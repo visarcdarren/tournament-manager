@@ -240,6 +240,14 @@ class TournamentAPI {
     })
   }
   
+  // Round advancement
+  async advanceRound(tournamentId, currentRound, nextRound) {
+    return this.fetch(`/tournament/${tournamentId}/advance-round`, {
+      method: 'POST',
+      body: JSON.stringify({ currentRound, nextRound })
+    })
+  }
+  
   // SSE connection
   connectToEvents(tournamentId, handlers) {
     const deviceStore = useDeviceStore.getState()

@@ -39,6 +39,11 @@ export default function TournamentView({ tournamentId }) {
   
   const { tournament, userRole, isLoading } = tournamentStore
   
+  // Define role flags early so they can be used in effects
+  const isAdmin = userRole === 'ADMIN'
+  const isScorer = userRole === 'SCORER' || userRole === 'ADMIN'
+  const isOriginalAdmin = tournament?.isOriginalAdmin
+  
   // Load tournament and connect to SSE
   useEffect(() => {
     if (!tournamentId) return
@@ -74,12 +79,15 @@ export default function TournamentView({ tournamentId }) {
       setActiveTab('completion')
     } else if (tournament.currentState?.status === 'active') {
       setActiveTab('live')
+    } else if (tournament.schedule?.length > 0 && !isAdmin) {
+      // For viewers, go to schedule tab if schedule exists (even in setup state)
+      setActiveTab('schedule')
     } else if (tournament.teams?.length >= 2) {
       setActiveTab('teams')
     } else {
       setActiveTab('setup')
     }
-  }, [tournament])
+  }, [tournament, isAdmin])
   
   const loadTournament = async () => {
     try {
@@ -110,6 +118,16 @@ export default function TournamentView({ tournamentId }) {
         if (data.currentState?.status === 'active' && !manualTabChangeRef.current) {
           setActiveTab('live')
         }
+        
+        // For viewers, check if round changed while in live tab
+        if (!isAdmin && activeTab === 'live' && data.currentState?.status === 'active') {
+          const newCurrentRound = getCurrentRound(data)
+          const oldCurrentRound = tournament ? getCurrentRound(tournament) : 1
+          if (newCurrentRound !== oldCurrentRound && !manualTabChangeRef.current) {
+            // Round changed, refresh live view (this will automatically show new round)
+            setActiveTab('live')
+          }
+        }
       },
       'tournament-started': (data) => {
         tournamentStore.setTournament(data)
@@ -128,6 +146,41 @@ export default function TournamentView({ tournamentId }) {
         toast({
           title: 'Game Scored',
           description: `Round ${data.round} game updated`
+        })
+      },
+      'round-completed': (data) => {
+        // Update tournament data
+        tournamentStore.setTournament(data.tournament)
+        
+        // For viewers, this just indicates a round has all games scored
+        // They won't advance until admin confirms via round-advanced event
+        if (!isAdmin) {
+          console.log(`Round ${data.completedRound} scoring completed - waiting for admin confirmation`)
+        }
+        
+        toast({
+          title: 'Round Scoring Complete!',
+          description: `All games in Round ${data.completedRound} have been scored`
+        })
+      },
+      'round-advanced': (data) => {
+        // Update tournament data with new current round
+        tournamentStore.setTournament(data.tournament)
+        
+        // For viewers, automatically move to the live tab to see new round
+        if (!isAdmin && !manualTabChangeRef.current) {
+          if (data.tournamentCompleted) {
+            setActiveTab('completion')
+          } else if (data.newCurrentRound) {
+            setActiveTab('live')
+          }
+        }
+        
+        toast({
+          title: 'Round Advanced!',
+          description: data.tournamentCompleted 
+            ? 'Tournament has been completed!' 
+            : `Now starting Round ${data.newCurrentRound}`
         })
       },
       'timer-countdown': (data) => {
@@ -252,9 +305,6 @@ export default function TournamentView({ tournamentId }) {
     return null
   }
   
-  const isAdmin = userRole === 'ADMIN'
-  const isScorer = userRole === 'SCORER' || userRole === 'ADMIN'
-  const isOriginalAdmin = tournament.isOriginalAdmin
   const currentRound = getCurrentRound(tournament)
   const isComplete = isTournamentComplete(tournament)
   
@@ -323,7 +373,7 @@ export default function TournamentView({ tournamentId }) {
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Failed to update tournament visibility',
+        description: error.response?.data?.error || error.message || 'Failed to update tournament visibility',
         variant: 'destructive'
       })
     }
@@ -505,18 +555,6 @@ export default function TournamentView({ tournamentId }) {
             {/* Desktop Navigation - completely hidden on mobile */}
             <div className="hidden md:block">
               <TabsList className="w-full grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 h-auto">
-              <TabsTrigger value="setup" disabled={!isAdmin} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
-                <Settings className="h-4 w-4 flex-shrink-0" />
-                <span className="text-xs sm:text-sm">Setup</span>
-              </TabsTrigger>
-              <TabsTrigger value="players" disabled={!isAdmin} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
-                <User className="h-4 w-4 flex-shrink-0" />
-                <span className="text-xs sm:text-sm">Players</span>
-              </TabsTrigger>
-              <TabsTrigger value="teams" disabled={!isAdmin} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
-                <Users className="h-4 w-4 flex-shrink-0" />
-                <span className="text-xs sm:text-sm">Teams</span>
-              </TabsTrigger>
               <TabsTrigger value="schedule" disabled={!tournament.schedule || tournament.schedule.length === 0} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
                 <Calendar className="h-4 w-4 flex-shrink-0" />
                 <span className="text-xs sm:text-sm">Schedule</span>
@@ -530,51 +568,76 @@ export default function TournamentView({ tournamentId }) {
                 <span className="text-xs sm:text-sm">Leaderboard</span>
               </TabsTrigger>
               {isAdmin && (
-                <TabsTrigger value="devices" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
-                  <Shield className="h-4 w-4 flex-shrink-0" />
-                  <span className="text-xs sm:text-sm">Devices</span>
-                </TabsTrigger>
+                <>
+                  <TabsTrigger value="setup" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                    <Settings className="h-4 w-4 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm">Setup</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="players" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                    <User className="h-4 w-4 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm">Players</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="teams" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                    <Users className="h-4 w-4 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm">Teams</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="devices" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                    <Shield className="h-4 w-4 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm">Devices</span>
+                  </TabsTrigger>
+                </>
               )}
               </TabsList>
             </div>
             
-            <TabsContent value="setup">
-              <TournamentSetup 
-                tournament={tournament} 
-                isAdmin={isAdmin}
-                isOriginalAdmin={isOriginalAdmin}
-                onNavigateToPlayers={() => {
-                  manualTabChangeRef.current = true
-                  setActiveTab('players')
-                }}
-                onTogglePublicStatus={togglePublicStatus}
-                onExportTournament={exportTournament}
-                onDeleteTournament={() => setShowDeleteDialog(true)}
-                onShare={handleShare}
-              />
-            </TabsContent>
-            
-            <TabsContent value="players">
-              <PlayerPoolManager 
-                tournament={tournament} 
-                isAdmin={isAdmin}
-                onNavigateToTeams={() => {
-                  manualTabChangeRef.current = true
-                  setActiveTab('teams')
-                }}
-              />
-            </TabsContent>
-            
-            <TabsContent value="teams">
-              <TeamManagement 
-                tournament={tournament} 
-                isAdmin={isAdmin}
-                onNavigateToLive={() => {
-                  manualTabChangeRef.current = false
-                  setActiveTab('live')
-                }}
-              />
-            </TabsContent>
+            {isAdmin && (
+              <>
+                <TabsContent value="setup">
+                  <TournamentSetup 
+                    tournament={tournament} 
+                    isAdmin={isAdmin}
+                    isOriginalAdmin={isOriginalAdmin}
+                    onNavigateToPlayers={() => {
+                      manualTabChangeRef.current = true
+                      setActiveTab('players')
+                    }}
+                    onTogglePublicStatus={togglePublicStatus}
+                    onExportTournament={exportTournament}
+                    onDeleteTournament={() => setShowDeleteDialog(true)}
+                    onShare={handleShare}
+                  />
+                </TabsContent>
+                
+                <TabsContent value="players">
+                  <PlayerPoolManager 
+                    tournament={tournament} 
+                    isAdmin={isAdmin}
+                    onNavigateToTeams={() => {
+                      manualTabChangeRef.current = true
+                      setActiveTab('teams')
+                    }}
+                  />
+                </TabsContent>
+                
+                <TabsContent value="teams">
+                  <TeamManagement 
+                    tournament={tournament} 
+                    isAdmin={isAdmin}
+                    onNavigateToLive={() => {
+                      manualTabChangeRef.current = false
+                      setActiveTab('live')
+                    }}
+                  />
+                </TabsContent>
+                
+                <TabsContent value="devices">
+                  <DevicePermissions 
+                    tournament={tournament} 
+                    isOriginalAdmin={isOriginalAdmin}
+                  />
+                </TabsContent>
+              </>
+            )}
             
             <TabsContent value="schedule">
               <ScheduleViewer 
@@ -596,15 +659,6 @@ export default function TournamentView({ tournamentId }) {
             <TabsContent value="leaderboard">
               <Leaderboard tournament={tournament} />
             </TabsContent>
-            
-            {isAdmin && (
-              <TabsContent value="devices">
-                <DevicePermissions 
-                  tournament={tournament} 
-                  isOriginalAdmin={isOriginalAdmin}
-                />
-              </TabsContent>
-            )}
           </Tabs>
         )}
       </div>

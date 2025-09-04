@@ -51,28 +51,15 @@ export default function LiveTournament({ tournament, currentRound, isAdmin, isSc
   // Complete the round and move to next
   const completeRound = async () => {
     try {
-      const updatedTournament = { ...tournament }
+      // Use the new advance round API
+      const nextRound = currentRound < tournament.settings.rounds ? currentRound + 1 : currentRound + 1; // +1 to trigger completion
       
-      // Mark round as complete and advance to next round
-      const roundIndex = updatedTournament.schedule.findIndex(r => r.round === currentRound)
-      if (roundIndex !== -1) {
-        updatedTournament.schedule[roundIndex].status = 'completed'
-      }
-      
-      // Advance to next round if there is one
-      if (currentRound < tournament.settings.rounds) {
-        updatedTournament.currentState.currentRound = currentRound + 1
-      } else {
-        updatedTournament.currentState.status = 'completed'
-      }
-      
-      await api.updateTournament(tournament.id, updatedTournament)
-      tournamentStore.setTournament(updatedTournament)
+      await api.advanceRound(tournament.id, currentRound, nextRound)
       
       toast({
         title: 'Round Complete!',
         description: currentRound < tournament.settings.rounds 
-          ? `Moving to Round ${currentRound + 1}` 
+          ? `Moving to Round ${nextRound}` 
           : 'Tournament Complete!'
       })
       
