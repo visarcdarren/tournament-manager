@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Plus, Trophy, Calendar, Users, Download, Upload, Globe, Lock } from 'lucide-react'
+import React, { useState, useRef, useEffect } from 'react'
+import { Plus, Trophy, Calendar, Users, Download, Upload, Globe, Lock, QrCode, Camera, Link, X, Scan } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,6 +10,7 @@ import { useNavigate } from '@/App'
 import api from '@/utils/api'
 import useDeviceStore from '@/stores/deviceStore'
 import MobileInstallBanner from '@/components/common/MobileInstallBanner'
+import QrScanner from 'qr-scanner'
 
 // Tournament card component for reuse
 function TournamentCard({ tournament, navigate, showAdminControls }) {
@@ -85,12 +86,142 @@ export default function TournamentList() {
   const [showAllMyTournaments, setShowAllMyTournaments] = useState(false)
   const [showAllPublicTournaments, setShowAllPublicTournaments] = useState(false)
   
+  // Connect to tournament state
+  const [showConnectDialog, setShowConnectDialog] = useState(false)
+  const [connectMode, setConnectMode] = useState('scan') // 'scan' or 'paste'
+  const [tournamentCode, setTournamentCode] = useState('')
+  const [isScanning, setIsScanning] = useState(false)
+  const [qrScanner, setQrScanner] = useState(null)
+  const videoRef = useRef(null)
+  
   // Initialize device on mount
   React.useEffect(() => {
     // Device is already initialized in App.jsx, just make it available
     window.deviceStore = useDeviceStore.getState()
     loadTournaments()
   }, [])
+  
+  // Cleanup QR scanner on unmount or when dialog closes
+  useEffect(() => {
+    return () => {
+      if (qrScanner) {
+        qrScanner.stop()
+        qrScanner.destroy()
+      }
+    }
+  }, [qrScanner])
+  
+  // Stop scanner when dialog closes
+  useEffect(() => {
+    if (!showConnectDialog && qrScanner) {
+      qrScanner.stop()
+      setQrScanner(null)
+      setIsScanning(false)
+    }
+  }, [showConnectDialog, qrScanner])
+  
+  // Connect via tournament code
+  const connectViaTournamentCode = () => {
+    if (!tournamentCode.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a tournament code',
+        variant: 'destructive'
+      })
+      return
+    }
+    
+    // Extract tournament ID from code (could be full URL or just ID)
+    let tournamentId = tournamentCode.trim()
+    
+    // If it's a URL, extract the ID
+    if (tournamentId.includes('/tournament/')) {
+      const match = tournamentId.match(/\/tournament\/([a-f0-9-]+)/i)
+      if (match) {
+        tournamentId = match[1]
+      }
+    }
+    
+    setShowConnectDialog(false)
+    setTournamentCode('')
+    navigate(`/tournament/${tournamentId}`)
+  }
+  
+  // Start QR code scanning
+  const startScanning = async () => {
+    try {
+      setIsScanning(true)
+      
+      if (!videoRef.current) {
+        throw new Error('Video element not ready')
+      }
+      
+      const scanner = new QrScanner(
+        videoRef.current,
+        (result) => {
+          console.log('QR Code detected:', result.data)
+          handleQrResult(result.data)
+        },
+        {
+          highlightScanRegion: true,
+          highlightCodeOutline: true,
+          preferredCamera: 'environment' // Use back camera on mobile
+        }
+      )
+      
+      await scanner.start()
+      setQrScanner(scanner)
+      
+    } catch (error) {
+      console.error('Failed to start QR scanner:', error)
+      toast({
+        title: 'Camera Error',
+        description: 'Could not access camera. Please check permissions.',
+        variant: 'destructive'
+      })
+      setIsScanning(false)
+    }
+  }
+  
+  // Handle QR code result
+  const handleQrResult = (data) => {
+    console.log('Processing QR result:', data)
+    
+    // Stop scanning
+    if (qrScanner) {
+      qrScanner.stop()
+      setQrScanner(null)
+      setIsScanning(false)
+    }
+    
+    // Extract tournament ID from various URL formats
+    let tournamentId = null
+    
+    // Direct tournament ID
+    if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(data)) {
+      tournamentId = data
+    }
+    // Full URL: https://domain.com/tournament/id
+    else if (data.includes('/tournament/')) {
+      const match = data.match(/\/tournament\/([a-f0-9-]+)/i)
+      if (match) {
+        tournamentId = match[1]
+      }
+    }
+    
+    if (tournamentId) {
+      setShowConnectDialog(false)
+      navigate(`/tournament/${tournamentId}`)
+    } else {
+      toast({
+        title: 'Invalid QR Code',
+        description: 'This QR code does not contain a valid tournament link.',
+        variant: 'destructive'
+      })
+      // Restart scanning
+      setTimeout(startScanning, 1000)
+    }
+  }
   
   const loadTournaments = async () => {
     try {
@@ -200,53 +331,219 @@ export default function TournamentList() {
                 Tournament management from Visarc
               </p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-              <Button variant="outline" onClick={() => document.getElementById('import-file').click()} className="w-full sm:w-auto">
-                <Upload className="mr-2 h-4 w-4" />
-                Import
-              </Button>
-              <input
-                id="import-file"
-                type="file"
-                accept=".json"
-                className="hidden"
-                onChange={handleImport}
+            <div className="flex flex-col gap-3 sm:gap-4">
+              {/* Mobile: 3-column layout with equal spacing */}
+              <div className="grid grid-cols-3 gap-2 sm:hidden">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowConnectDialog(true)}
+                  className="flex flex-col items-center justify-center h-16 text-xs"
+                >
+                  <QrCode className="h-5 w-5 mb-1" />
+                  <span>Connect</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => document.getElementById('import-file').click()}
+                  className="flex flex-col items-center justify-center h-16 text-xs"
+                >
+                  <Upload className="h-5 w-5 mb-1" />
+                  <span>Import</span>
+                </Button>
+                <Button 
+                  onClick={() => setShowCreateDialog(true)}
+                  className="flex flex-col items-center justify-center h-16 text-xs"
+                >
+                  <Plus className="h-5 w-5 mb-1" />
+                  <span>Create</span>
+                </Button>
+              </div>
+              
+              {/* Desktop: Row layout */}
+              <div className="hidden sm:flex sm:flex-row gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowConnectDialog(true)}
+                  className="w-full sm:w-auto"
+                >
+                  <QrCode className="mr-2 h-4 w-4" />
+                  Connect to Tournament
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => document.getElementById('import-file').click()}
+                  className="w-full sm:w-auto"
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  Import
+                </Button>
+                <Button 
+                  onClick={() => setShowCreateDialog(true)}
+                  className="w-full sm:w-auto"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Tournament
+                </Button>
+              </div>
+              </div>
+              </div>
+      
+      {/* Hidden file input for import */}
+      <input
+        id="import-file"
+        type="file"
+        accept=".json"
+        className="hidden"
+        onChange={handleImport}
+      />
+      
+      {/* Create Tournament Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="mx-4 max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New Tournament</DialogTitle>
+            <DialogDescription>
+              Enter a name for your tournament. You can configure teams and settings later.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Tournament Name</Label>
+              <Input
+                id="name"
+                value={newTournamentName}
+                onChange={(e) => setNewTournamentName(e.target.value)}
+                placeholder="Summer League 2025"
+                onKeyDown={(e) => e.key === 'Enter' && createTournament()}
               />
-              <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-                <DialogTrigger asChild>
-                  <Button className="w-full sm:w-auto">
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Tournament
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="mx-4 max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Create New Tournament</DialogTitle>
-                    <DialogDescription>
-                      Enter a name for your tournament. You can configure teams and settings later.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="name">Tournament Name</Label>
-                      <Input
-                        id="name"
-                        value={newTournamentName}
-                        onChange={(e) => setNewTournamentName(e.target.value)}
-                        placeholder="Summer League 2025"
-                        onKeyDown={(e) => e.key === 'Enter' && createTournament()}
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button type="submit" onClick={createTournament} className="w-full">
-                      Create Tournament
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
             </div>
           </div>
+          <DialogFooter>
+            <Button type="submit" onClick={createTournament} className="w-full">
+              Create Tournament
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Connect to Tournament Dialog */}
+      <Dialog open={showConnectDialog} onOpenChange={setShowConnectDialog}>
+        <DialogContent className="mx-4 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="h-5 w-5" />
+              Connect to Tournament
+            </DialogTitle>
+            <DialogDescription>
+              Join a tournament by scanning its QR code or entering the tournament link/code.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Mode Toggle */}
+            <div className="flex rounded-lg border bg-muted p-1">
+              <button
+                onClick={() => setConnectMode('scan')}
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  connectMode === 'scan'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Camera className="mr-2 h-4 w-4 inline" />
+                Scan QR Code
+              </button>
+              <button
+                onClick={() => setConnectMode('paste')}
+                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  connectMode === 'paste'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Link className="mr-2 h-4 w-4 inline" />
+                Enter Code
+              </button>
+            </div>
+            
+            {/* Scan Mode */}
+            {connectMode === 'scan' && (
+              <div className="space-y-4">
+                {!isScanning ? (
+                  <div className="text-center space-y-4">
+                    <div className="w-48 h-48 mx-auto border-2 border-dashed border-muted-foreground/25 rounded-lg flex items-center justify-center">
+                      <div className="text-center">
+                        <Camera className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">Camera preview will appear here</p>
+                      </div>
+                    </div>
+                    <Button onClick={startScanning} className="w-full">
+                      <Scan className="mr-2 h-4 w-4" />
+                      Start Scanning
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <video
+                        ref={videoRef}
+                        className="w-full h-48 bg-black rounded-lg object-cover"
+                        playsInline
+                        muted
+                      />
+                      <div className="absolute inset-0 border-2 border-primary rounded-lg pointer-events-none">
+                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-32 h-32 border-2 border-primary rounded-lg"></div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => {
+                          if (qrScanner) {
+                            qrScanner.stop()
+                            setQrScanner(null)
+                          }
+                          setIsScanning(false)
+                        }}
+                        className="flex-1"
+                      >
+                        <X className="mr-2 h-4 w-4" />
+                        Stop
+                      </Button>
+                    </div>
+                    <p className="text-sm text-center text-muted-foreground">
+                      Point your camera at a tournament QR code
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Paste Mode */}
+            {connectMode === 'paste' && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="tournament-code">Tournament Link or Code</Label>
+                  <Input
+                    id="tournament-code"
+                    value={tournamentCode}
+                    onChange={(e) => setTournamentCode(e.target.value)}
+                    placeholder="https://domain.com/tournament/abc123 or abc123"
+                    onKeyDown={(e) => e.key === 'Enter' && connectViaTournamentCode()}
+                  />
+                </div>
+                <Button onClick={connectViaTournamentCode} className="w-full" disabled={!tournamentCode.trim()}>
+                  <Link className="mr-2 h-4 w-4" />
+                  Connect to Tournament
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Paste the tournament link or just the tournament ID from the URL
+                </p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
         </div>
         
         {isLoading ? (
