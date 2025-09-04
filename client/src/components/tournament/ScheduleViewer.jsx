@@ -57,6 +57,22 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
         <CardContent className="text-center py-8">
           <Calendar className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
           <p className="text-muted-foreground">No schedule generated yet</p>
+          
+          {/* Show start tournament button if admin and teams are set up */}
+          {isAdmin && canStart && tournament.teams?.length >= 2 && (
+            <div className="mt-4">
+              <Button 
+                onClick={onStartTournament}
+                className="bg-green-600 text-white border-green-600 hover:bg-green-700"
+              >
+                <Play className="mr-2 h-4 w-4" />
+                Start Tournament
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2">
+                This will generate the schedule and start the tournament
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     )

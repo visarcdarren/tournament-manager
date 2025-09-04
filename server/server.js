@@ -744,6 +744,7 @@ app.post('/api/tournament/:id/generate-schedule', authenticateAdmin, async (req,
     
     res.json({ 
       success: true, 
+      tournament: tournament,
       schedule: tournament.schedule,
       validation 
     });

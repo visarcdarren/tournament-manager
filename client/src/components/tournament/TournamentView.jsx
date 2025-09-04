@@ -316,33 +316,39 @@ export default function TournamentView({ tournamentId }) {
         { id: 'teams', icon: Users, label: 'Teams', disabled: !isAdmin }
       ]
     } else {
-      // Active/Running phase: Schedule, Live, Leaderboard
-      // Now that Schedule page has start button, we can show consistent nav
-      return [
+      // Active/Running phase: Schedule, Live, Leaderboard/Results
+      const tabs = [
         { id: 'schedule', icon: Calendar, label: 'Schedule', disabled: !tournament.schedule || tournament.schedule.length === 0 },
-        { id: 'live', icon: Play, label: 'Live', disabled: tournament.currentState?.status !== 'active' },
-        { id: 'leaderboard', icon: Trophy, label: 'Leaderboard', disabled: false }
+        { id: 'live', icon: Play, label: 'Live', disabled: tournament.currentState?.status !== 'active' }
       ]
+      
+      // Replace Leaderboard with Results when tournament is complete
+      if (isComplete && tournament.schedule?.length > 0) {
+        tabs.push({ id: 'completion', icon: Trophy, label: 'Results', disabled: false })
+      } else {
+        tabs.push({ id: 'leaderboard', icon: Trophy, label: 'Leaderboard', disabled: false })
+      }
+      
+      return tabs
     }
   }
   
   // Get hamburger menu items based on tournament state
   const getHamburgerItems = () => {
     if (isInSetupPhase) {
-      // Setup phase: Devices in hamburger
+      // Setup phase: Devices in hamburger (since Setup, Players, Teams are in bottom nav)
       return isAdmin ? [
         { id: 'devices', icon: Shield, label: 'Devices' }
       ] : []
     } else {
-      // Active/Running phase: Setup, Players, Teams, Devices in hamburger
-      // Now Teams is always in hamburger since it's not needed in bottom nav for start button
+      // Active/Running phase: Admin tabs in hamburger (since Schedule, Live, Leaderboard/Results are in bottom nav)
       const items = []
       if (isAdmin) {
         items.push(
           { id: 'setup', icon: Settings, label: 'Setup' },
+          { id: 'devices', icon: Shield, label: 'Devices' },
           { id: 'players', icon: User, label: 'Players' },
-          { id: 'teams', icon: Users, label: 'Teams' },
-          { id: 'devices', icon: Shield, label: 'Devices' }
+          { id: 'teams', icon: Users, label: 'Teams' }
         )
       }
       return items
@@ -401,6 +407,26 @@ export default function TournamentView({ tournamentId }) {
       
       const response = await api.generateSchedule(tournament.id)
       
+      // Use the updated tournament data from server response if available,
+      // otherwise construct it locally to prevent view inconsistencies
+      const updatedTournament = response.tournament || {
+        ...tournament,
+        currentState: {
+          ...tournament.currentState,
+          status: 'active',
+          currentRound: tournament.currentState?.currentRound || 1
+        },
+        schedule: response.schedule || tournament.schedule
+      }
+      
+      // Update the store immediately
+      console.log('[TOURNAMENT START] Updating tournament state:', {
+        oldStatus: tournament.currentState?.status,
+        newStatus: updatedTournament.currentState?.status,
+        hasSchedule: !!(updatedTournament.schedule?.length > 0)
+      })
+      tournamentStore.setTournament(updatedTournament)
+      
       // Reset manual flag to allow automatic navigation
       manualTabChangeRef.current = false
       
@@ -409,7 +435,7 @@ export default function TournamentView({ tournamentId }) {
       
       toast({
         title: 'Tournament Started!',
-        description: `Started with ${response.schedule.length} rounds and ${response.schedule.reduce((sum, r) => sum + r.games.length, 0)} total games`
+        description: `Started with ${response.schedule?.length || tournament.schedule?.length || 0} rounds and ${(response.schedule || tournament.schedule || []).reduce((sum, r) => sum + r.games.length, 0)} total games`
       })
     } catch (error) {
       toast({
@@ -539,34 +565,23 @@ export default function TournamentView({ tournamentId }) {
       
       {/* Main Content */}
       <div className="mx-auto max-w-7xl p-4 sm:p-6 pb-20 md:pb-6">
-        {isComplete && tournament.schedule?.length > 0 ? (
-          <CompletionScreen tournament={tournament} />
-        ) : (
-          <Tabs value={activeTab} onValueChange={(value) => {
-            manualTabChangeRef.current = true
-            setActiveTab(value)
-            setShowMobileMenu(false) // Close mobile menu when tab changes
-          }}>
+        <Tabs value={activeTab} onValueChange={(value) => {
+          manualTabChangeRef.current = true
+          setActiveTab(value)
+          setShowMobileMenu(false) // Close mobile menu when tab changes
+        }}>
             {/* Desktop Navigation - completely hidden on mobile */}
             <div className="hidden md:block">
               <TabsList className="w-full grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 h-auto">
-              <TabsTrigger value="schedule" disabled={!tournament.schedule || tournament.schedule.length === 0} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
-                <Calendar className="h-4 w-4 flex-shrink-0" />
-                <span className="text-xs sm:text-sm">Schedule</span>
-              </TabsTrigger>
-              <TabsTrigger value="live" disabled={tournament.currentState.status !== 'active'} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
-                <Play className="h-4 w-4 flex-shrink-0" />
-                <span className="text-xs sm:text-sm">Live</span>
-              </TabsTrigger>
-              <TabsTrigger value="leaderboard" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
-                <Trophy className="h-4 w-4 flex-shrink-0" />
-                <span className="text-xs sm:text-sm">Leaderboard</span>
-              </TabsTrigger>
               {isAdmin && (
                 <>
                   <TabsTrigger value="setup" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
                     <Settings className="h-4 w-4 flex-shrink-0" />
                     <span className="text-xs sm:text-sm">Setup</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="devices" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                    <Shield className="h-4 w-4 flex-shrink-0" />
+                    <span className="text-xs sm:text-sm">Devices</span>
                   </TabsTrigger>
                   <TabsTrigger value="players" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
                     <User className="h-4 w-4 flex-shrink-0" />
@@ -576,11 +591,26 @@ export default function TournamentView({ tournamentId }) {
                     <Users className="h-4 w-4 flex-shrink-0" />
                     <span className="text-xs sm:text-sm">Teams</span>
                   </TabsTrigger>
-                  <TabsTrigger value="devices" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
-                    <Shield className="h-4 w-4 flex-shrink-0" />
-                    <span className="text-xs sm:text-sm">Devices</span>
-                  </TabsTrigger>
                 </>
+              )}
+              <TabsTrigger value="schedule" disabled={!tournament.schedule || tournament.schedule.length === 0} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                <Calendar className="h-4 w-4 flex-shrink-0" />
+                <span className="text-xs sm:text-sm">Schedule</span>
+              </TabsTrigger>
+              <TabsTrigger value="live" disabled={tournament.currentState.status !== 'active'} className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                <Play className="h-4 w-4 flex-shrink-0" />
+                <span className="text-xs sm:text-sm">Live</span>
+              </TabsTrigger>
+              {isComplete && tournament.schedule?.length > 0 ? (
+                <TabsTrigger value="completion" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                  <Trophy className="h-4 w-4 flex-shrink-0" />
+                  <span className="text-xs sm:text-sm">Results</span>
+                </TabsTrigger>
+              ) : (
+                <TabsTrigger value="leaderboard" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 px-2 sm:px-4">
+                  <Trophy className="h-4 w-4 flex-shrink-0" />
+                  <span className="text-xs sm:text-sm">Leaderboard</span>
+                </TabsTrigger>
               )}
               </TabsList>
             </div>
@@ -653,13 +683,16 @@ export default function TournamentView({ tournamentId }) {
             <TabsContent value="leaderboard">
               <Leaderboard tournament={tournament} />
             </TabsContent>
+            
+            <TabsContent value="completion">
+              <CompletionScreen tournament={tournament} />
+            </TabsContent>
           </Tabs>
-        )}
       </div>
       
       {/* Mobile Bottom Navigation - only visible on mobile */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t md:hidden safe-bottom z-50">
-        <div className="grid grid-cols-3 h-16">
+        <div className={`grid h-16 ${getMobileBottomTabs().length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
           {getMobileBottomTabs().map(tab => {
             const Icon = tab.icon
             return (
