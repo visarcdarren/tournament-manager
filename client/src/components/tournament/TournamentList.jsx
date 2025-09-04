@@ -152,6 +152,61 @@ export default function TournamentList() {
     try {
       setIsScanning(true)
       
+      // First check if we have camera permissions
+      if (navigator.permissions) {
+        try {
+          const permission = await navigator.permissions.query({ name: 'camera' })
+          console.log('Camera permission state:', permission.state)
+          
+          if (permission.state === 'denied') {
+            throw new Error('Camera access was denied. Please enable camera permissions in your browser settings.')
+          }
+        } catch (permError) {
+          console.log('Permission query not supported, continuing with camera request')
+        }
+      }
+      
+      // Request camera access explicitly first
+      let stream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: 'environment' // Try back camera first
+          } 
+        })
+        console.log('Camera access granted')
+        
+        // Stop the test stream immediately
+        stream.getTracks().forEach(track => track.stop())
+      } catch (mediaError) {
+        console.error('Camera access error:', mediaError)
+        
+        // Try again with any camera
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true })
+          console.log('Camera access granted (fallback)')
+          stream.getTracks().forEach(track => track.stop())
+        } catch (fallbackError) {
+          console.error('Fallback camera access error:', fallbackError)
+          
+          let errorMessage = 'Could not access camera. '
+          
+          if (fallbackError.name === 'NotAllowedError') {
+            errorMessage += 'Camera permission was denied. Please allow camera access and try again.'
+          } else if (fallbackError.name === 'NotFoundError') {
+            errorMessage += 'No camera found on this device.'
+          } else if (fallbackError.name === 'NotSupportedError') {
+            errorMessage += 'Camera is not supported in this browser.'
+          } else if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+            errorMessage += 'Camera access requires HTTPS. Please use a secure connection.'
+          } else {
+            errorMessage += 'Please check your camera permissions and try again.'
+          }
+          
+          throw new Error(errorMessage)
+        }
+      }
+      
       if (!videoRef.current) {
         throw new Error('Video element not ready')
       }
@@ -165,18 +220,21 @@ export default function TournamentList() {
         {
           highlightScanRegion: true,
           highlightCodeOutline: true,
-          preferredCamera: 'environment' // Use back camera on mobile
+          preferredCamera: 'environment', // Use back camera on mobile
+          maxScansPerSecond: 5 // Limit scan frequency
         }
       )
       
       await scanner.start()
       setQrScanner(scanner)
       
+      console.log('QR Scanner started successfully')
+      
     } catch (error) {
       console.error('Failed to start QR scanner:', error)
       toast({
         title: 'Camera Error',
-        description: 'Could not access camera. Please check permissions.',
+        description: error.message,
         variant: 'destructive'
       })
       setIsScanning(false)
@@ -481,6 +539,13 @@ export default function TournamentList() {
                       <Scan className="mr-2 h-4 w-4" />
                       Start Scanning
                     </Button>
+                    <div className="text-xs text-muted-foreground space-y-2">
+                      <p>• Your browser will ask for camera permission</p>
+                      <p>• Make sure to allow camera access when prompted</p>
+                      {window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && (
+                        <p className="text-amber-600">⚠️ Camera requires HTTPS connection</p>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
