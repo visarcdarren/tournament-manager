@@ -82,6 +82,8 @@ export default function TournamentList() {
   const [isLoading, setIsLoading] = useState(true)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [newTournamentName, setNewTournamentName] = useState('')
+  const [showAllMyTournaments, setShowAllMyTournaments] = useState(false)
+  const [showAllPublicTournaments, setShowAllPublicTournaments] = useState(false)
   
   // Initialize device on mount
   React.useEffect(() => {
@@ -271,7 +273,7 @@ export default function TournamentList() {
               <div>
                 <h2 className="text-xl font-semibold mb-4">My Tournaments</h2>
                 <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {tournaments.filter(t => t.section === 'mine').slice(0, 5).map((tournament) => (
+                  {tournaments.filter(t => t.section === 'mine').slice(0, showAllMyTournaments ? undefined : 4).map((tournament) => (
                     <TournamentCard 
                     key={tournament.id} 
                     tournament={tournament} 
@@ -279,9 +281,22 @@ export default function TournamentList() {
                     />
                   ))}
                 </div>
-                {tournaments.filter(t => t.section === 'mine').length > 5 && (
-                  <Button variant="outline" className="mt-4">
-                    Show More ({tournaments.filter(t => t.section === 'mine').length - 5} more)
+                {tournaments.filter(t => t.section === 'mine').length > 4 && !showAllMyTournaments && (
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => setShowAllMyTournaments(true)}
+                  >
+                    Show More ({tournaments.filter(t => t.section === 'mine').length - 4} more)
+                  </Button>
+                )}
+                {showAllMyTournaments && tournaments.filter(t => t.section === 'mine').length > 4 && (
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => setShowAllMyTournaments(false)}
+                  >
+                    Show Less
                   </Button>
                 )}
               </div>
@@ -292,7 +307,7 @@ export default function TournamentList() {
               <div>
                 <h2 className="text-xl font-semibold mb-4">Public Tournaments</h2>
                 <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {tournaments.filter(t => t.section === 'public').slice(0, 5).map((tournament) => (
+                  {tournaments.filter(t => t.section === 'public').slice(0, showAllPublicTournaments ? undefined : 4).map((tournament) => (
                     <TournamentCard 
                     key={tournament.id} 
                     tournament={tournament} 
@@ -300,9 +315,22 @@ export default function TournamentList() {
                     />
                   ))}
                 </div>
-                {tournaments.filter(t => t.section === 'public').length > 5 && (
-                  <Button variant="outline" className="mt-4">
-                    Show More ({tournaments.filter(t => t.section === 'public').length - 5} more)
+                {tournaments.filter(t => t.section === 'public').length > 4 && !showAllPublicTournaments && (
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => setShowAllPublicTournaments(true)}
+                  >
+                    Show More ({tournaments.filter(t => t.section === 'public').length - 4} more)
+                  </Button>
+                )}
+                {showAllPublicTournaments && tournaments.filter(t => t.section === 'public').length > 4 && (
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => setShowAllPublicTournaments(false)}
+                  >
+                    Show Less
                   </Button>
                 )}
               </div>
