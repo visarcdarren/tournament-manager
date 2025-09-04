@@ -386,12 +386,45 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
     return { issues }
   }
   
-  // Check if basic settings are valid
-  const hasBasicSettings = settings.teams >= 2 && 
-                          settings.teams <= 10 && 
-                          settings.playersPerTeam >= 4 && 
-                          settings.playersPerTeam <= 10 && 
-                          settings.rounds >= 1
+  // Check if basic settings are valid with detailed validation
+  const validateBasicSettings = () => {
+    const errors = []
+    
+    if (!settings.teams || settings.teams < 2) {
+      errors.push('At least 2 teams required')
+    } else if (settings.teams > 10) {
+      errors.push('Maximum 10 teams allowed')
+    }
+    
+    if (!settings.playersPerTeam || settings.playersPerTeam < 1) {
+      errors.push('At least 1 player per team required')
+    }
+    
+    if (!settings.rounds || settings.rounds < 1) {
+      errors.push('At least 1 round required')
+    } else if (settings.rounds > 20) {
+      errors.push('Maximum 20 rounds allowed')
+    }
+    
+    if (!settings.gameTypes || settings.gameTypes.length === 0) {
+      errors.push('At least one game type must be configured')
+    } else {
+      // Check if any game type has no stations
+      const gameTypesWithoutStations = settings.gameTypes.filter(gt => !gt.stations || gt.stations.length === 0)
+      if (gameTypesWithoutStations.length > 0) {
+        errors.push(`Game type "${gameTypesWithoutStations[0].name}" needs at least one station`)
+      }
+    }
+    
+    if (!tournamentName || !tournamentName.trim()) {
+      errors.push('Tournament name is required')
+    }
+    
+    return errors
+  }
+  
+  const validationErrors = validateBasicSettings()
+  const hasBasicSettings = validationErrors.length === 0
   
   // For initial setup, we don't need teams to be created yet
   const canSaveSettings = canEdit && hasBasicSettings
@@ -416,45 +449,52 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
         </CardHeader>
         <CardContent>
           {canEdit ? (
-            <div className="flex gap-2">
-              <Input
-                value={tournamentName}
-                onChange={(e) => setTournamentName(e.target.value)}
-                placeholder="Enter tournament name"
-                maxLength={100}
-                className="flex-1"
-              />
-              <Button
-                onClick={async () => {
-                  if (tournamentName.trim() && tournamentName !== tournament.name) {
-                    try {
-                      setIsSaving(true)
-                      const updatedTournament = {
-                        ...tournament,
-                        name: tournamentName.trim()
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  value={tournamentName}
+                  onChange={(e) => setTournamentName(e.target.value)}
+                  placeholder="Enter tournament name"
+                  maxLength={100}
+                  className={`flex-1 ${tournamentName.trim() ? 'border-green-500' : 'border-red-500'}`}
+                />
+                <Button
+                  onClick={async () => {
+                    if (tournamentName.trim() && tournamentName !== tournament.name) {
+                      try {
+                        setIsSaving(true)
+                        const updatedTournament = {
+                          ...tournament,
+                          name: tournamentName.trim()
+                        }
+                        await api.updateTournament(tournament.id, updatedTournament)
+                        tournamentStore.setTournament(updatedTournament)
+                        toast({
+                          title: 'Success',
+                          description: 'Tournament name updated'
+                        })
+                      } catch (error) {
+                        toast({
+                          title: 'Error',
+                          description: 'Failed to update tournament name',
+                          variant: 'destructive'
+                        })
+                      } finally {
+                        setIsSaving(false)
                       }
-                      await api.updateTournament(tournament.id, updatedTournament)
-                      tournamentStore.setTournament(updatedTournament)
-                      toast({
-                        title: 'Success',
-                        description: 'Tournament name updated'
-                      })
-                    } catch (error) {
-                      toast({
-                        title: 'Error',
-                        description: 'Failed to update tournament name',
-                        variant: 'destructive'
-                      })
-                    } finally {
-                      setIsSaving(false)
                     }
-                  }
-                }}
-                disabled={!tournamentName.trim() || tournamentName === tournament.name || isSaving}
-                variant="outline"
-              >
-                {isSaving ? 'Saving...' : 'Update'}
-              </Button>
+                  }}
+                  disabled={!tournamentName.trim() || tournamentName === tournament.name || isSaving}
+                  variant="outline"
+                >
+                  {isSaving ? 'Saving...' : 'Update'}
+                </Button>
+              </div>
+              {!tournamentName.trim() && (
+                <p className="text-sm text-red-600">
+                  Tournament name is required
+                </p>
+              )}
             </div>
           ) : (
             <div className="p-3 bg-muted rounded-md font-medium">
@@ -490,21 +530,32 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
                   value={settings.teams}
                   onChange={(e) => handleSettingChange('teams', e.target.value)}
                   disabled={!canEdit}
+                  className={!canEdit ? '' : (settings.teams >= 2 && settings.teams <= 10) ? 'border-green-500' : 'border-red-500'}
                 />
                 <p className="mt-1 text-sm text-muted-foreground">2-10 teams</p>
+                {canEdit && (settings.teams < 2 || settings.teams > 10) && (
+                  <p className="text-sm text-red-600 mt-1">
+                    {settings.teams < 2 ? 'Minimum 2 teams required' : 'Maximum 10 teams allowed'}
+                  </p>
+                )}
               </div>
               <div>
                 <Label htmlFor="playersPerTeam">Players per Team</Label>
                 <Input
                   id="playersPerTeam"
                   type="number"
-                  min="4"
-                  max="10"
+                  min="1"
                   value={settings.playersPerTeam}
                   onChange={(e) => handleSettingChange('playersPerTeam', e.target.value)}
                   disabled={!canEdit}
+                  className={!canEdit ? '' : (settings.playersPerTeam >= 1) ? 'border-green-500' : 'border-red-500'}
                 />
-                <p className="mt-1 text-sm text-muted-foreground">4-10 players</p>
+                <p className="mt-1 text-sm text-muted-foreground">Minimum 1 player per team</p>
+                {canEdit && settings.playersPerTeam < 1 && (
+                  <p className="text-sm text-red-600 mt-1">
+                    At least 1 player per team required
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -523,10 +574,16 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
                   value={settings.rounds}
                   onChange={(e) => handleSettingChange('rounds', e.target.value)}
                   disabled={!canEdit}
+                  className={!canEdit ? '' : (settings.rounds >= 1 && settings.rounds <= 20) ? 'border-green-500' : 'border-red-500'}
                 />
                 <p className="mt-1 text-sm text-muted-foreground">
                   Total games: {settings.rounds * totalStations}
                 </p>
+                {canEdit && (settings.rounds < 1 || settings.rounds > 20) && (
+                  <p className="text-sm text-red-600 mt-1">
+                    {settings.rounds < 1 ? 'At least 1 round required' : 'Maximum 20 rounds allowed'}
+                  </p>
+                )}
               </div>
               
               <div className="space-y-2">
@@ -614,6 +671,54 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
           </div>
         </CardContent>
       </Card>
+
+      {/* Setup Status Card - Show validation issues */}
+      {canEdit && validationErrors.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="text-amber-800 flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              Setup Incomplete
+            </CardTitle>
+            <CardDescription className="text-amber-700">
+              Please fix the following issues to continue:
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {validationErrors.map((error, index) => (
+                <li key={index} className="flex items-start gap-2 text-sm text-amber-800">
+                  <span className="text-amber-600 font-bold mt-0.5">•</span>
+                  <span>{error}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 text-sm text-amber-700">
+              Complete these requirements to enable the "Save and Add Players" button.
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Success Status Card */}
+      {canEdit && validationErrors.length === 0 && (
+        <Card className="border-green-200 bg-green-50">
+          <CardHeader>
+            <CardTitle className="text-green-800 flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Setup Complete!
+            </CardTitle>
+            <CardDescription className="text-green-700">
+              Your tournament configuration is valid and ready for the next step.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-green-700">
+              You can now save these settings and proceed to add players to your teams.
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Game Types */}
       {canEdit && (
@@ -812,31 +917,42 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
           </div>
 
           {canEdit && (
-            <div className="flex gap-2 flex-wrap">
-              <Button 
-                onClick={saveSettings} 
-                disabled={isSaving || !canSaveSettings}
-                variant="outline"
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {isSaving ? 'Saving...' : 'Save Settings'}
-              </Button>
-              <Button 
-                onClick={saveAndEditPlayers} 
-                disabled={isSaving || !canSaveSettings}
-              >
-                <Users className="mr-2 h-4 w-4" />
-                {isSaving ? 'Saving...' : 'Save and Add Players'}
-              </Button>
-              {canPreview && (
+            <div className="space-y-3">
+              <div className="flex gap-2 flex-wrap">
                 <Button 
-                  onClick={() => previewSchedule()}
-                  disabled={isGeneratingPreview}
+                  onClick={saveSettings} 
+                  disabled={isSaving || !canSaveSettings}
                   variant="outline"
+                  title={!canSaveSettings ? 'Fix validation errors above to enable' : ''}
                 >
-                  <Eye className="mr-2 h-4 w-4" />
-                  {isGeneratingPreview ? 'Generating...' : 'Preview Schedule'}
+                  <Save className="mr-2 h-4 w-4" />
+                  {isSaving ? 'Saving...' : 'Save Settings'}
                 </Button>
+                <Button 
+                  onClick={saveAndEditPlayers} 
+                  disabled={isSaving || !canSaveSettings}
+                  title={!canSaveSettings ? 'Fix validation errors above to enable' : ''}
+                  className={canSaveSettings ? '' : 'opacity-50'}
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  {isSaving ? 'Saving...' : 'Save and Add Players'}
+                </Button>
+                {canPreview && (
+                  <Button 
+                    onClick={() => previewSchedule()}
+                    disabled={isGeneratingPreview}
+                    variant="outline"
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    {isGeneratingPreview ? 'Generating...' : 'Preview Schedule'}
+                  </Button>
+                )}
+              </div>
+              
+              {!canSaveSettings && (
+                <div className="text-sm text-muted-foreground">
+                  💡 Complete the setup requirements above to continue
+                </div>
               )}
             </div>
           )}
