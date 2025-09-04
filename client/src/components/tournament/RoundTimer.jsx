@@ -28,7 +28,7 @@ export default function RoundTimer({ round, tournamentId, isAdmin }) {
       
       setTimeLeft(calculateTimeLeft())
       
-      // Update timer every second using server timestamp as authority
+      // Update timer at higher frequency (200ms) for smoother display
       const interval = setInterval(() => {
         const remaining = calculateTimeLeft()
         setTimeLeft(remaining)
@@ -38,7 +38,7 @@ export default function RoundTimer({ round, tournamentId, isAdmin }) {
           playSound('timer-end')
           setHasPlayedExpiredSound(true)
         }
-      }, 1000)
+      }, 200) // 200ms for smoother updates
       
       return () => clearInterval(interval)
     } else if (status.status === 'expired') {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Eye, Download, Trash2, Calendar, Globe, Lock, Share2, User, Shield, Menu, X, QrCode, Copy } from 'lucide-react'
+import { ArrowLeft, Settings, Users, Play, Trophy, Clock, Eye, Download, Trash2, Calendar, Globe, Lock, Share2, User, Shield, Menu, X, QrCode, Copy, Wifi, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -25,6 +25,45 @@ import ScheduleViewer from './ScheduleViewer'
 import SharingAndDevices from './DevicePermissions'
 import { getCurrentRound, isTournamentComplete } from '@/utils/tournament'
 import QRCode from 'qrcode'
+
+// Connection Quality Indicator Component
+function ConnectionQualityIndicator() {
+  const { isConnected, connectionQuality } = useTournamentStore()
+  
+  if (!isConnected) {
+    return (
+      <span className="flex items-center gap-1 text-destructive">
+        <WifiOff className="h-3 w-3 flex-shrink-0" />
+        <span className="hidden sm:inline">Disconnected</span>
+      </span>
+    )
+  }
+  
+  if (connectionQuality === 'poor') {
+    return (
+      <span className="flex items-center gap-1 text-yellow-600">
+        <Wifi className="h-3 w-3 flex-shrink-0" />
+        <span className="hidden sm:inline">Poor connection</span>
+      </span>
+    )
+  }
+  
+  if (connectionQuality === 'fair') {
+    return (
+      <span className="flex items-center gap-1 text-yellow-500">
+        <Wifi className="h-3 w-3 flex-shrink-0" />
+        <span className="hidden sm:inline">Fair connection</span>
+      </span>
+    )
+  }
+  
+  // Good connection - only show icon on mobile, nothing on desktop
+  return (
+    <span className="flex items-center gap-1 text-green-600 sm:hidden">
+      <Wifi className="h-3 w-3 flex-shrink-0" />
+    </span>
+  )
+}
 
 export default function TournamentView({ tournamentId }) {
   const navigate = useNavigate()
@@ -53,7 +92,13 @@ export default function TournamentView({ tournamentId }) {
     loadTournament()
     connectToEvents()
     
+    // Set up periodic connection quality check
+    const qualityCheck = setInterval(() => {
+      tournamentStore.updateConnectionQuality()
+    }, 5000) // Check every 5 seconds
+    
     return () => {
+      clearInterval(qualityCheck)
       tournamentStore.reset()
     }
   }, [tournamentId])
@@ -205,35 +250,35 @@ export default function TournamentView({ tournamentId }) {
             : `Now starting Round ${data.newCurrentRound}`
         })
       },
-      'timer-countdown': (data) => {
-        tournamentStore.updateTimerStatus(data.round, { status: 'countdown' })
+      'timer-countdown': (data, message) => {
+        tournamentStore.updateTimerStatus(data.round, { status: 'countdown' }, message.serverTime)
       },
-      'timer-started': (data) => {
+      'timer-started': (data, message) => {
         tournamentStore.updateTimerStatus(data.round, { 
           status: 'running',
           expiresAt: data.expiresAt 
-        })
+        }, message.serverTime)
       },
-      'timer-state': (data) => {
+      'timer-state': (data, message) => {
         // Handle timer state updates for late joiners
-        tournamentStore.updateTimerStatus(data.round, data.timer)
+        tournamentStore.updateTimerStatus(data.round, data.timer, message.serverTime)
       },
-      'timer-paused': (data) => {
-        tournamentStore.updateTimerStatus(data.round, data.timer)
+      'timer-paused': (data, message) => {
+        tournamentStore.updateTimerStatus(data.round, data.timer, message.serverTime)
         toast({
           title: 'Timer Paused',
           description: `Round ${data.round} timer was paused`
         })
       },
-      'timer-reset': (data) => {
-        tournamentStore.updateTimerStatus(data.round, { status: 'not-started' })
+      'timer-reset': (data, message) => {
+        tournamentStore.updateTimerStatus(data.round, { status: 'not-started' }, message.serverTime)
         toast({
           title: 'Timer Reset',
           description: `Round ${data.round} timer was reset`
         })
       },
-      'timer-expired': (data) => {
-        tournamentStore.updateTimerStatus(data.round, { status: 'expired' })
+      'timer-expired': (data, message) => {
+        tournamentStore.updateTimerStatus(data.round, { status: 'expired' }, message.serverTime)
         toast({
           title: 'Time\'s Up!',
           description: `Round ${data.round} timer has expired`
@@ -265,8 +310,18 @@ export default function TournamentView({ tournamentId }) {
         })
         navigate('/')
       },
-      'connected': () => {
+      'connected': (data) => {
         tournamentStore.setConnected(true)
+        // Handle initial server time sync
+        if (data && data.serverTime) {
+          tournamentStore.handleHeartbeat(data.serverTime)
+        }
+      },
+      'heartbeat': (data) => {
+        // Handle periodic heartbeat for time sync
+        if (data && data.serverTime) {
+          tournamentStore.handleHeartbeat(data.serverTime)
+        }
       },
       'error': (error) => {
         tournamentStore.setConnected(false)
@@ -550,6 +605,8 @@ export default function TournamentView({ tournamentId }) {
                       Round {currentRound} of {tournament.settings.rounds}
                     </span>
                   )}
+                  {/* Connection quality indicator */}
+                  <ConnectionQualityIndicator />
                 </div>
               </div>
               {/* Mobile hamburger menu button */}

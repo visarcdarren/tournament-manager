@@ -29,6 +29,8 @@ export default function LiveTournament({ tournament, isAdmin, isScorer }) {
   const [swapContext, setSwapContext] = useState(null)
   const [showRoundCompleteDialog, setShowRoundCompleteDialog] = useState(false)
   const [userDeclinedCompletion, setUserDeclinedCompletion] = useState(false)
+  const [isCompletingRound, setIsCompletingRound] = useState(false) // Add loading state
+  const [lastCompleteRoundCall, setLastCompleteRoundCall] = useState(0) // Debounce protection
   
   // Calculate current round reactively
   const currentRound = getCurrentRound(tournament)
@@ -39,6 +41,8 @@ export default function LiveTournament({ tournament, isAdmin, isScorer }) {
       // If tournament completed or round advanced, close the dialog
       setShowRoundCompleteDialog(false)
       setUserDeclinedCompletion(false)
+      setIsCompletingRound(false) // Reset loading state when dialog closes
+      setLastCompleteRoundCall(0) // Reset debounce timer
     }
   }, [currentRound, tournament.currentState?.status])
   
@@ -63,7 +67,28 @@ export default function LiveTournament({ tournament, isAdmin, isScorer }) {
   }
   
   // Complete the round and move to next
-  const completeRound = async () => {
+  const completeRound = async (e) => {
+    // Prevent event bubbling and double-clicks
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    
+    const now = Date.now()
+    
+    // Debounce protection - prevent calls within 2 seconds
+    if (now - lastCompleteRoundCall < 2000) {
+      return
+    }
+    
+    // Prevent double submission
+    if (isCompletingRound) {
+      return
+    }
+    
+    setLastCompleteRoundCall(now)
+    setIsCompletingRound(true)
+    
     try {
       // Use the new advance round API
       const nextRound = currentRound < tournament.settings.rounds ? currentRound + 1 : currentRound + 1; // +1 to trigger completion
@@ -84,6 +109,11 @@ export default function LiveTournament({ tournament, isAdmin, isScorer }) {
         description: 'Failed to complete round',
         variant: 'destructive'
       })
+    } finally {
+      // Reset loading state after a delay to prevent immediate re-clicking
+      setTimeout(() => {
+        setIsCompletingRound(false)
+      }, 1000)
     }
   }
   
@@ -358,8 +388,20 @@ export default function LiveTournament({ tournament, isAdmin, isScorer }) {
       />
       
       {/* Round Complete Confirmation Dialog */}
-      <Dialog open={showRoundCompleteDialog} onOpenChange={setShowRoundCompleteDialog}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md mx-auto">
+      <Dialog open={showRoundCompleteDialog} onOpenChange={(open) => {
+        // Prevent closing dialog while operation is in progress
+        if (!open && isCompletingRound) {
+          return
+        }
+        setShowRoundCompleteDialog(open)
+      }}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md mx-auto" onKeyDown={(e) => {
+          // Prevent Enter key from triggering button clicks while processing
+          if (e.key === 'Enter' && isCompletingRound) {
+            e.preventDefault()
+            e.stopPropagation()
+          }
+        }}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
               <Trophy className="h-5 w-5 text-primary flex-shrink-0" />
@@ -389,6 +431,7 @@ export default function LiveTournament({ tournament, isAdmin, isScorer }) {
               onClick={declineRoundCompletion}
               className="w-full order-2 sm:order-1 text-sm"
               size="default"
+              disabled={isCompletingRound}
             >
               No, Continue Scoring
             </Button>
@@ -396,8 +439,16 @@ export default function LiveTournament({ tournament, isAdmin, isScorer }) {
               onClick={completeRound}
               className="w-full order-1 sm:order-2 text-sm"
               size="default"
+              disabled={isCompletingRound}
             >
-              {currentRound < tournament.settings.rounds ? 'Complete Round' : 'Finish Tournament'}
+              {isCompletingRound ? (
+                <>
+                  <div className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-background border-t-transparent"></div>
+                  Processing...
+                </>
+              ) : (
+                currentRound < tournament.settings.rounds ? 'Complete Round' : 'Finish Tournament'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -272,10 +272,11 @@ class TournamentAPI {
     
     eventSource.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data)
+        const message = JSON.parse(event.data)
         
-        if (handlers[data.type]) {
-          handlers[data.type](data.data)
+        if (handlers[message.type]) {
+          // Pass both the data and the full message (for serverTime access)
+          handlers[message.type](message.data || message, message)
         }
       } catch (e) {
         console.error('Failed to parse SSE message:', e)
