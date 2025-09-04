@@ -401,6 +401,26 @@ export default function TournamentView({ tournamentId }) {
       
       const response = await api.generateSchedule(tournament.id)
       
+      // Use the updated tournament data from server response if available,
+      // otherwise construct it locally to prevent view inconsistencies
+      const updatedTournament = response.tournament || {
+        ...tournament,
+        currentState: {
+          ...tournament.currentState,
+          status: 'active',
+          currentRound: tournament.currentState?.currentRound || 1
+        },
+        schedule: response.schedule || tournament.schedule
+      }
+      
+      // Update the store immediately
+      console.log('[TOURNAMENT START] Updating tournament state:', {
+        oldStatus: tournament.currentState?.status,
+        newStatus: updatedTournament.currentState?.status,
+        hasSchedule: !!(updatedTournament.schedule?.length > 0)
+      })
+      tournamentStore.setTournament(updatedTournament)
+      
       // Reset manual flag to allow automatic navigation
       manualTabChangeRef.current = false
       
@@ -409,7 +429,7 @@ export default function TournamentView({ tournamentId }) {
       
       toast({
         title: 'Tournament Started!',
-        description: `Started with ${response.schedule.length} rounds and ${response.schedule.reduce((sum, r) => sum + r.games.length, 0)} total games`
+        description: `Started with ${response.schedule?.length || tournament.schedule?.length || 0} rounds and ${(response.schedule || tournament.schedule || []).reduce((sum, r) => sum + r.games.length, 0)} total games`
       })
     } catch (error) {
       toast({
