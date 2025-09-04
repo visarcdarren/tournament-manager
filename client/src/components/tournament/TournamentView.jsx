@@ -152,12 +152,6 @@ export default function TournamentView({ tournamentId }) {
         // Update tournament data
         tournamentStore.setTournament(data.tournament)
         
-        // For viewers, this just indicates a round has all games scored
-        // They won't advance until admin confirms via round-advanced event
-        if (!isAdmin) {
-          console.log(`Round ${data.completedRound} scoring completed - waiting for admin confirmation`)
-        }
-        
         toast({
           title: 'Round Scoring Complete!',
           description: `All games in Round ${data.completedRound} have been scored`
@@ -167,11 +161,12 @@ export default function TournamentView({ tournamentId }) {
         // Update tournament data with new current round
         tournamentStore.setTournament(data.tournament)
         
-        // For viewers, automatically move to the live tab to see new round
+        // For viewers, automatically navigate to the appropriate view
         if (!isAdmin && !manualTabChangeRef.current) {
           if (data.tournamentCompleted) {
             setActiveTab('completion')
           } else if (data.newCurrentRound) {
+            // Always ensure viewers are on live tab for new round, even if already there
             setActiveTab('live')
           }
         }
@@ -650,7 +645,6 @@ export default function TournamentView({ tournamentId }) {
             <TabsContent value="live">
               <LiveTournament 
                 tournament={tournament} 
-                currentRound={currentRound}
                 isAdmin={isAdmin}
                 isScorer={isScorer}
               />
