@@ -502,7 +502,21 @@ export default function TeamManagement({ tournament, isAdmin, onNavigateToLive }
       // Generate schedule using the API
       const response = await api.generateSchedule(tournament.id)
       
-      // Navigate to live tab if callback provided
+      // Update the tournament store with the new data BEFORE navigating
+      const updatedTournament = response.tournament || {
+        ...tournament,
+        currentState: {
+          ...tournament.currentState,
+          status: 'active',
+          currentRound: tournament.currentState?.currentRound || 1
+        },
+        schedule: response.schedule || tournament.schedule
+      }
+      
+      // Update the store immediately
+      tournamentStore.setTournament(updatedTournament)
+      
+      // Now navigate to live tab
       if (onNavigateToLive) {
         onNavigateToLive()
       }
