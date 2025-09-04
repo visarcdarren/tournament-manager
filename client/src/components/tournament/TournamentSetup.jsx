@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Settings, Save, AlertCircle, Timer, TimerOff, Users, Calendar, Eye, RotateCcw, Globe, Lock, Share, Trash2, Download } from 'lucide-react'
+import { Settings, Save, AlertCircle, Timer, TimerOff, Users, Calendar, Eye, RotateCcw, Trash2, Download } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,9 +12,8 @@ import useTournamentStore from '@/stores/tournamentStore'
 import GameTypeManager from './GameTypeManager'
 import ScheduleViewer from './ScheduleViewer'
 import SchedulePreviewModal from './SchedulePreviewModal'
-import AdminSharingDialog from './AdminSharingDialog'
 
-export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, onNavigateToPlayers, onTogglePublicStatus, onExportTournament, onDeleteTournament, onShare }) {
+export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, onNavigateToPlayers, onExportTournament, onDeleteTournament }) {
   const { toast } = useToast()
   const tournamentStore = useTournamentStore()
   const [settings, setSettings] = useState(() => {
@@ -785,94 +784,7 @@ export default function TournamentSetup({ tournament, isAdmin, isOriginalAdmin, 
         </Card>
       )}
 
-      {/* Access Management */}
-      {isAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Access & Sharing</CardTitle>
-            <CardDescription>
-              Control who can access your tournament and how they can interact with it
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Public/Private Status */}
-            <div className="space-y-4">
-              <h4 className="font-semibold text-base">Tournament Visibility</h4>
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="space-y-1">
-                  <div className="font-medium flex items-center gap-2">
-                    {tournament.isPublic ? (
-                      <>
-                        <Globe className="h-4 w-4 text-green-600" />
-                        Public Tournament
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="h-4 w-4 text-gray-500" />
-                        Private Tournament
-                      </>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {tournament.isPublic 
-                      ? 'Anyone with the link can view tournament progress in real-time'
-                      : 'Only you and shared admins can access this tournament'
-                    }
-                  </p>
-                  {!tournament.isPublic && (!tournament.schedule || tournament.schedule.length === 0) && (
-                    <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
-                      ⚠️ Generate a schedule before making the tournament public so viewers have something meaningful to see.
-                    </p>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  {tournament.isPublic && (
-                    <Button variant="outline" onClick={onShare} size="sm">
-                      <Share className="mr-2 h-4 w-4" />
-                      Share
-                    </Button>
-                  )}
-                  <Button 
-                    variant="outline" 
-                    onClick={onTogglePublicStatus} 
-                    size="sm"
-                    disabled={!tournament.isPublic && (!tournament.schedule || tournament.schedule.length === 0)}
-                    title={!tournament.isPublic && (!tournament.schedule || tournament.schedule.length === 0) ? "Schedule must be generated before making tournament public" : ""}
-                  >
-                    {tournament.isPublic ? (
-                      <>
-                        <Lock className="mr-2 h-4 w-4" />
-                        Make Private
-                      </>
-                    ) : (
-                      <>
-                        <Globe className="mr-2 h-4 w-4" />
-                        Make Public
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-            
-            {/* Admin Sharing */}
-            <div className="space-y-4">
-              <h4 className="font-semibold text-base">Admin Sharing</h4>
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  Grant admin access to other users via secure password-protected links. 
-                  Admins can modify tournament settings, manage teams, and control all aspects of the tournament.
-                </p>
-                <AdminSharingDialog 
-                  tournament={tournament} 
-                  isOriginalAdmin={isOriginalAdmin}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      
+
       {/* Data Backup */}
       {isAdmin && (
         <Card>

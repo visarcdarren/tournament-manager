@@ -28,7 +28,8 @@
     "date-fns": "^2.30.0",
     "uuid": "^9.0.0",
     "lucide-react": "^0.263.1",
-    "class-variance-authority": "^0.7.0"
+    "class-variance-authority": "^0.7.0",
+    "qrcode": "^1.5.3"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",
