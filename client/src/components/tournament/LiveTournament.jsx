@@ -19,7 +19,9 @@ import GameCard from './GameCard'
 import RoundTimer from './RoundTimer'
 import PlayerSwapDialog from './PlayerSwapDialog'
 
-export default function LiveTournament({ tournament, currentRound, isAdmin, isScorer }) {
+import { getCurrentRound, isTournamentComplete } from '@/utils/tournament'
+
+export default function LiveTournament({ tournament, isAdmin, isScorer }) {
   const { toast } = useToast()
   const tournamentStore = useTournamentStore()
   const [timerDuration, setTimerDuration] = useState(tournament.settings.timer?.duration || 30)
@@ -27,6 +29,18 @@ export default function LiveTournament({ tournament, currentRound, isAdmin, isSc
   const [swapContext, setSwapContext] = useState(null)
   const [showRoundCompleteDialog, setShowRoundCompleteDialog] = useState(false)
   const [userDeclinedCompletion, setUserDeclinedCompletion] = useState(false)
+  
+  // Calculate current round reactively
+  const currentRound = getCurrentRound(tournament)
+  
+  // Close round complete dialog when current round changes (admin confirmed advancement)
+  useEffect(() => {
+    if (showRoundCompleteDialog) {
+      // If tournament completed or round advanced, close the dialog
+      setShowRoundCompleteDialog(false)
+      setUserDeclinedCompletion(false)
+    }
+  }, [currentRound, tournament.currentState?.status])
   
   const round = tournament.schedule?.find(r => r.round === currentRound)
   const hasSchedule = tournament.schedule && tournament.schedule.length > 0
@@ -63,7 +77,7 @@ export default function LiveTournament({ tournament, currentRound, isAdmin, isSc
           : 'Tournament Complete!'
       })
       
-      setShowRoundCompleteDialog(false)
+      // Don't manually close dialog - useEffect will handle it when currentRound changes
     } catch (error) {
       toast({
         title: 'Error',
