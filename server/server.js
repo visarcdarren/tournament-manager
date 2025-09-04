@@ -89,11 +89,17 @@ async function saveTournament(id, data) {
   await fs.writeFile(path.join(DATA_DIR, `${id}.json`), JSON.stringify(data, null, 2));
 }
 
-// Broadcast to SSE clients
+// Enhanced broadcast function with server time
 function broadcastToTournament(tournamentId, data) {
   const clients = sseClients.get(tournamentId);
   if (clients) {
-    const message = `data: ${JSON.stringify(data)}\n\n`;
+    // Add server timestamp to all broadcasts for sync
+    const enhancedData = {
+      ...data,
+      serverTime: Date.now()
+    };
+    
+    const message = `data: ${JSON.stringify(enhancedData)}\n\n`;
     clients.forEach(client => {
       try {
         client.write(message);
@@ -1339,7 +1345,7 @@ app.get('/api/tournament/:id/audit', authenticateAdmin, async (req, res) => {
   }
 });
 
-// SSE endpoint for real-time updates
+// Enhanced SSE endpoint for real-time updates with time sync
 app.get('/api/tournament/:id/events', async (req, res) => {
   // For SSE, get device ID from query parameter instead of header
   const deviceId = req.query.deviceId || req.headers['x-device-id'];
@@ -1351,6 +1357,8 @@ app.get('/api/tournament/:id/events', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', '*');
   
   const tournamentId = req.params.id;
   
@@ -1360,8 +1368,13 @@ app.get('/api/tournament/:id/events', async (req, res) => {
   }
   sseClients.get(tournamentId).add(res);
   
-  // Send initial connection message
-  res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
+  // Send initial connection message with server time for sync
+  const serverTime = Date.now();
+  res.write(`data: ${JSON.stringify({ 
+    type: 'connected', 
+    serverTime,
+    connectionId: deviceId + '-' + Date.now() // Unique connection ID
+  })}\n\n`);
   
   // Send current timer states for all rounds to new client
   try {
@@ -1370,10 +1383,10 @@ app.get('/api/tournament/:id/events', async (req, res) => {
       for (const round of tournament.schedule) {
         if (round.timer && round.timer.status !== 'not-started') {
           let timer = { ...round.timer };
+          const now = Date.now();
           
           // Check for expiry and calculate remaining time
           if (timer.status === 'running' && timer.expiresAt) {
-            const now = Date.now();
             if (now >= timer.expiresAt) {
               timer.status = 'expired';
               // Update stored state if expired
@@ -1384,10 +1397,11 @@ app.get('/api/tournament/:id/events', async (req, res) => {
             }
           }
           
-          // Send timer state to new client
+          // Send timer state to new client with current server time
           res.write(`data: ${JSON.stringify({
             type: 'timer-state',
-            data: { round: round.round, timer }
+            data: { round: round.round, timer },
+            serverTime: now
           })}\n\n`);
         }
       }
@@ -1396,8 +1410,21 @@ app.get('/api/tournament/:id/events', async (req, res) => {
     console.error('Error sending timer states to new client:', error);
   }
   
+  // Send periodic heartbeat with server time for sync
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(`data: ${JSON.stringify({
+        type: 'heartbeat',
+        serverTime: Date.now()
+      })}\n\n`);
+    } catch (error) {
+      clearInterval(heartbeat);
+    }
+  }, 5000); // Every 5 seconds
+  
   // Clean up on disconnect
   req.on('close', () => {
+    clearInterval(heartbeat);
     const clients = sseClients.get(tournamentId);
     if (clients) {
       clients.delete(res);
