@@ -945,12 +945,18 @@ app.post('/api/tournament/:id/round/:round/timer/start', authenticateAdmin, asyn
   
   // Start countdown
   round.timer = {
-    duration,
     status: 'countdown',
+    duration,
     countdownStartedAt: Date.now()
   };
   
   await saveTournament(tournament.id, tournament);
+  await addAuditEntry(tournament.id, {
+    deviceId: req.deviceId,
+    deviceName: req.device?.name || 'Admin',
+    action: 'START_TIMER_COUNTDOWN',
+    details: { round: roundNum, duration }
+  });
   
   // Broadcast countdown start
   broadcastToTournament(tournament.id, {
@@ -960,24 +966,207 @@ app.post('/api/tournament/:id/round/:round/timer/start', authenticateAdmin, asyn
   
   // After 5 seconds, start the actual timer
   setTimeout(async () => {
-    const tournament = await loadTournament(req.params.id);
-    const round = tournament.schedule.find(r => r.round === roundNum);
+    const updatedTournament = await loadTournament(req.params.id);
+    const updatedRound = updatedTournament.schedule.find(r => r.round === roundNum);
+    
+    // Only proceed if timer is still in countdown state (not cancelled)
+    if (updatedRound?.timer?.status === 'countdown') {
+      const now = Date.now();
+      updatedRound.timer = {
+        status: 'running',
+        duration,
+        startedAt: now,
+        expiresAt: now + (duration * 60 * 1000)
+      };
+      
+      await saveTournament(updatedTournament.id, updatedTournament);
+      await addAuditEntry(updatedTournament.id, {
+        deviceId: req.deviceId,
+        deviceName: req.device?.name || 'Admin',
+        action: 'START_TIMER',
+        details: { round: roundNum, duration, expiresAt: updatedRound.timer.expiresAt }
+      });
+      
+      // Broadcast timer start
+      broadcastToTournament(updatedTournament.id, {
+        type: 'timer-started',
+        data: { round: roundNum, expiresAt: updatedRound.timer.expiresAt }
+      });
+    }
+  }, 5000);
+  
+  res.json({ success: true });
+});
+
+// Pause timer (admin only)
+app.post('/api/tournament/:id/round/:round/timer/pause', authenticateAdmin, async (req, res) => {
+  const tournament = req.tournament;
+  const roundNum = parseInt(req.params.round);
+  
+  const round = tournament.schedule.find(r => r.round === roundNum);
+  if (!round) {
+    return res.status(404).json({ error: 'Round not found' });
+  }
+  
+  if (!round.timer || (round.timer.status !== 'running' && round.timer.status !== 'countdown')) {
+    return res.status(400).json({ error: 'Timer is not running' });
+  }
+  
+  const now = Date.now();
+  
+  if (round.timer.status === 'running') {
+    // Calculate remaining time at pause
+    const remainingMs = Math.max(0, round.timer.expiresAt - now);
     
     round.timer = {
-      duration,
-      status: 'running',
-      startedAt: Date.now(),
-      expiresAt: Date.now() + (duration * 60 * 1000)
+      ...round.timer,
+      status: 'paused',
+      pausedAt: now,
+      remainingMs: remainingMs
     };
+  } else if (round.timer.status === 'countdown') {
+    // Pause during countdown
+    round.timer = {
+      ...round.timer,
+      status: 'paused',
+      pausedAt: now
+    };
+  }
+  
+  await saveTournament(tournament.id, tournament);
+  await addAuditEntry(tournament.id, {
+    deviceId: req.deviceId,
+    deviceName: req.device?.name || 'Admin',
+    action: 'PAUSE_TIMER',
+    details: { round: roundNum, remainingMs: round.timer.remainingMs }
+  });
+  
+  // Broadcast pause
+  broadcastToTournament(tournament.id, {
+    type: 'timer-paused',
+    data: { round: roundNum, timer: round.timer }
+  });
+  
+  res.json({ success: true });
+});
+
+// Resume timer (admin only)
+app.post('/api/tournament/:id/round/:round/timer/resume', authenticateAdmin, async (req, res) => {
+  const tournament = req.tournament;
+  const roundNum = parseInt(req.params.round);
+  
+  const round = tournament.schedule.find(r => r.round === roundNum);
+  if (!round) {
+    return res.status(404).json({ error: 'Round not found' });
+  }
+  
+  if (!round.timer || round.timer.status !== 'paused') {
+    return res.status(400).json({ error: 'Timer is not paused' });
+  }
+  
+  const now = Date.now();
+  
+  // Check if timer was paused during countdown
+  if (round.timer.countdownStartedAt && !round.timer.startedAt) {
+    // Resume countdown - calculate remaining countdown time
+    const countdownElapsed = round.timer.pausedAt - round.timer.countdownStartedAt;
+    const countdownRemaining = Math.max(0, 5000 - countdownElapsed);
     
-    await saveTournament(tournament.id, tournament);
-    
-    // Broadcast timer start
-    broadcastToTournament(tournament.id, {
-      type: 'timer-started',
-      data: { round: roundNum, expiresAt: round.timer.expiresAt }
-    });
-  }, 5000);
+    if (countdownRemaining > 0) {
+      // Resume countdown
+      round.timer = {
+        ...round.timer,
+        status: 'countdown',
+        countdownStartedAt: now - countdownElapsed
+      };
+      
+      // Set timeout for remaining countdown
+      setTimeout(async () => {
+        const updatedTournament = await loadTournament(req.params.id);
+        const updatedRound = updatedTournament.schedule.find(r => r.round === roundNum);
+        
+        if (updatedRound?.timer?.status === 'countdown') {
+          const timerNow = Date.now();
+          updatedRound.timer = {
+            ...updatedRound.timer,
+            status: 'running',
+            startedAt: timerNow,
+            expiresAt: timerNow + (updatedRound.timer.duration * 60 * 1000)
+          };
+          
+          await saveTournament(updatedTournament.id, updatedTournament);
+          broadcastToTournament(updatedTournament.id, {
+            type: 'timer-started',
+            data: { round: roundNum, expiresAt: updatedRound.timer.expiresAt }
+          });
+        }
+      }, countdownRemaining);
+    } else {
+      // Countdown finished, start timer immediately
+      round.timer = {
+        ...round.timer,
+        status: 'running',
+        startedAt: now,
+        expiresAt: now + (round.timer.duration * 60 * 1000)
+      };
+    }
+  } else {
+    // Resume running timer with remaining time
+    round.timer = {
+      ...round.timer,
+      status: 'running',
+      startedAt: now,
+      expiresAt: now + round.timer.remainingMs
+    };
+  }
+  
+  await saveTournament(tournament.id, tournament);
+  await addAuditEntry(tournament.id, {
+    deviceId: req.deviceId,
+    deviceName: req.device?.name || 'Admin',
+    action: 'RESUME_TIMER',
+    details: { round: roundNum, expiresAt: round.timer.expiresAt }
+  });
+  
+  // Broadcast resume
+  broadcastToTournament(tournament.id, {
+    type: round.timer.status === 'countdown' ? 'timer-countdown' : 'timer-started',
+    data: { round: roundNum, expiresAt: round.timer.expiresAt }
+  });
+  
+  res.json({ success: true });
+});
+
+// Reset timer (admin only)
+app.post('/api/tournament/:id/round/:round/timer/reset', authenticateAdmin, async (req, res) => {
+  const tournament = req.tournament;
+  const roundNum = parseInt(req.params.round);
+  
+  const round = tournament.schedule.find(r => r.round === roundNum);
+  if (!round) {
+    return res.status(404).json({ error: 'Round not found' });
+  }
+  
+  if (!round.timer || round.timer.status === 'not-started') {
+    return res.status(400).json({ error: 'No timer to reset' });
+  }
+  
+  // Clear timer state
+  round.timer = null;
+  
+  await saveTournament(tournament.id, tournament);
+  await addAuditEntry(tournament.id, {
+    deviceId: req.deviceId,
+    deviceName: req.device?.name || 'Admin',
+    action: 'RESET_TIMER',
+    details: { round: roundNum }
+  });
+  
+  // Broadcast reset
+  broadcastToTournament(tournament.id, {
+    type: 'timer-reset',
+    data: { round: roundNum }
+  });
   
   res.json({ success: true });
 });
@@ -994,7 +1183,49 @@ app.get('/api/tournament/:id/round/:round/timer', authenticate, async (req, res)
     return res.status(404).json({ error: 'Round not found' });
   }
   
-  res.json(round.timer || { status: 'not-started' });
+  let timer = round.timer || { status: 'not-started' };
+  
+  // Check for expiry and update if necessary (only for running timers)
+  if (timer.status === 'running' && timer.expiresAt && Date.now() >= timer.expiresAt) {
+    timer = {
+      ...timer,
+      status: 'expired'
+    };
+    
+    // Update the stored timer state
+    round.timer = timer;
+    await saveTournament(tournament.id, tournament);
+    await addAuditEntry(tournament.id, {
+      deviceId: req.deviceId,
+      deviceName: 'System',
+      action: 'TIMER_EXPIRED',
+      details: { round: parseInt(req.params.round) }
+    });
+    
+    // Broadcast expiry to all clients
+    broadcastToTournament(tournament.id, {
+      type: 'timer-expired',
+      data: { round: parseInt(req.params.round) }
+    });
+  }
+  
+  // Calculate remaining time for running timers
+  if (timer.status === 'running' && timer.expiresAt) {
+    timer = {
+      ...timer,
+      remainingMs: Math.max(0, timer.expiresAt - Date.now())
+    };
+  }
+  
+  // For paused timers, return the stored remaining time
+  if (timer.status === 'paused' && timer.remainingMs !== undefined) {
+    timer = {
+      ...timer,
+      remainingMs: timer.remainingMs
+    };
+  }
+  
+  res.json(timer);
 });
 
 // Get audit log (admin only)
@@ -1008,7 +1239,7 @@ app.get('/api/tournament/:id/audit', authenticateAdmin, async (req, res) => {
 });
 
 // SSE endpoint for real-time updates
-app.get('/api/tournament/:id/events', (req, res) => {
+app.get('/api/tournament/:id/events', async (req, res) => {
   // For SSE, get device ID from query parameter instead of header
   const deviceId = req.query.deviceId || req.headers['x-device-id'];
   
@@ -1030,6 +1261,39 @@ app.get('/api/tournament/:id/events', (req, res) => {
   
   // Send initial connection message
   res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
+  
+  // Send current timer states for all rounds to new client
+  try {
+    const tournament = await loadTournament(tournamentId);
+    if (tournament?.schedule) {
+      for (const round of tournament.schedule) {
+        if (round.timer && round.timer.status !== 'not-started') {
+          let timer = { ...round.timer };
+          
+          // Check for expiry and calculate remaining time
+          if (timer.status === 'running' && timer.expiresAt) {
+            const now = Date.now();
+            if (now >= timer.expiresAt) {
+              timer.status = 'expired';
+              // Update stored state if expired
+              round.timer = timer;
+              await saveTournament(tournament.id, tournament);
+            } else {
+              timer.remainingMs = timer.expiresAt - now;
+            }
+          }
+          
+          // Send timer state to new client
+          res.write(`data: ${JSON.stringify({
+            type: 'timer-state',
+            data: { round: round.round, timer }
+          })}\n\n`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error sending timer states to new client:', error);
+  }
   
   // Clean up on disconnect
   req.on('close', () => {
