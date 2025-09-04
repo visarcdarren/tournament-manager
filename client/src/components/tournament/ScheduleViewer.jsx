@@ -1,14 +1,108 @@
-import React, { useState, useEffect } from 'react'
-import { Calendar, Printer, MapPin, Users, Clock, ChevronRight, Trophy, Medal, Shuffle, AlertCircle, Play } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { Calendar, Printer, MapPin, Users, Clock, ChevronRight, Trophy, Medal, Shuffle, AlertCircle, Play, Search } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import api from '@/utils/api'
 import useTournamentStore from '@/stores/tournamentStore'
 import { getCurrentRound } from '@/utils/tournament'
+
+// Searchable Combobox Component
+function PlayerCombobox({ value, onSelect, players, placeholder = "Select or type player name..." }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState(value || '')
+  const inputRef = useRef(null)
+  const dropdownRef = useRef(null)
+  
+  const filteredPlayers = players.filter(player =>
+    player.name.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+  
+  const handleSelect = (player) => {
+    setSearchTerm(player.name)
+    setIsOpen(false)
+    onSelect(player)
+  }
+  
+  const handleInputChange = (e) => {
+    setSearchTerm(e.target.value)
+    setIsOpen(true)
+  }
+  
+  const handleInputKeyDown = (e) => {
+    if (e.key === 'ArrowDown' && filteredPlayers.length > 0) {
+      e.preventDefault()
+      setIsOpen(true)
+    } else if (e.key === 'Escape') {
+      setIsOpen(false)
+    }
+  }
+  
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target) &&
+          inputRef.current && !inputRef.current.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+    
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+  
+  // Reset when value prop changes
+  useEffect(() => {
+    setSearchTerm(value || '')
+  }, [value])
+  
+  return (
+    <div className="relative">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          ref={inputRef}
+          value={searchTerm}
+          onChange={handleInputChange}
+          onKeyDown={handleInputKeyDown}
+          onFocus={() => setIsOpen(true)}
+          placeholder={placeholder}
+          className="pl-10"
+        />
+      </div>
+      
+      {isOpen && filteredPlayers.length > 0 && (
+        <div 
+          ref={dropdownRef}
+          className="absolute z-50 w-full mt-1 bg-card border border-border rounded-md shadow-lg max-h-48 overflow-y-auto"
+        >
+          {filteredPlayers.map(player => (
+            <button
+              key={player.id}
+              onClick={() => handleSelect(player)}
+              className="w-full text-left px-3 py-2 text-card-foreground hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none transition-colors"
+            >
+              <div className="font-medium">{player.name}</div>
+              <div className="text-xs text-muted-foreground">({player.teamName})</div>
+            </button>
+          ))}
+        </div>
+      )}
+      
+      {isOpen && searchTerm && filteredPlayers.length === 0 && players.length > 0 && (
+        <div 
+          ref={dropdownRef}
+          className="absolute z-50 w-full mt-1 bg-card border border-border rounded-md shadow-lg p-3"
+        >
+          <div className="text-sm text-muted-foreground">No players match "{searchTerm}"</div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function ScheduleViewer({ tournament, isAdmin, onStartTournament }) {
   const { toast } = useToast()
@@ -235,7 +329,7 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
   const canStart = isAdmin && tournament.currentState?.status === 'setup' && onStartTournament
   
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 w-full">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl sm:text-2xl font-bold">Tournament Schedule</h2>
         <div className="flex flex-col sm:flex-row gap-2">
@@ -270,7 +364,7 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
         </div>
       </div>
       
-      <Tabs defaultValue="rounds" className="space-y-4">
+      <Tabs defaultValue="rounds" className="space-y-4 w-full min-h-0">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="rounds">By Round</TabsTrigger>
           <TabsTrigger value="stations">By Station</TabsTrigger>
@@ -278,7 +372,7 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
         </TabsList>
         
         {/* By Round View */}
-        <TabsContent value="rounds" className="space-y-4">
+        <TabsContent value="rounds" className="space-y-4 w-full">
           <div className="flex gap-2 flex-wrap justify-center sm:justify-start">
             {tournament.schedule.map((_, index) => (
               <Button
@@ -302,9 +396,9 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
             ))}
           </div>
           
-          <Card>
+          <Card className={tournament.currentState?.status === 'active' && selectedRound === currentRound ? 'border-green-500 border-2 shadow-green-500/20 shadow-lg' : ''}>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className={`flex items-center gap-2 ${tournament.currentState?.status === 'active' && selectedRound === currentRound ? 'text-green-600' : ''}`}>
                 <Clock className="h-5 w-5" />
                 Round {selectedRound}
               </CardTitle>
@@ -326,7 +420,7 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2">
                 {tournament.schedule[selectedRound - 1].games.map(game => {
                   const result = formatGameResult(game)
                   
@@ -363,50 +457,51 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
                   
                   return (
                     <Card key={game.id} className={result ? 'opacity-90' : ''}>
-                      <CardHeader>
-                        <CardTitle className="flex items-center justify-between text-base">
+                      <CardHeader className="p-4 sm:p-6">
+                        <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm sm:text-base">
                           <div className="flex items-center gap-2">
                             <MapPin className="h-4 w-4" />
-                            <span>{game.stationName || game.station}</span>
-                           
+                            <span className="break-words">{game.stationName || game.station}</span>
                           </div>
                           {result && (
                             <Badge 
                               variant="outline" 
-                              className={`text-xs ${result.className} flex items-center gap-1`}
+                              className={`text-xs ${result.className} flex items-center gap-1 flex-shrink-0`}
                             >
                               {result.text === 'Draw' ? (
                                 <>
                                   <Medal className="h-3 w-3" />
-                                  Draw
+                                  <span className="hidden sm:inline">Draw</span>
+                                  <span className="sm:hidden">Draw</span>
                                 </>
                               ) : (
                                 <>
                                   <Trophy className="h-3 w-3" />
-                                  Winner
+                                  <span className="hidden sm:inline">Winner</span>
+                                  <span className="sm:hidden">W</span>
                                 </>
                               )}
                             </Badge>
                           )}
                           {!result && (
-                            <Badge variant="outline" className="text-xs text-muted-foreground">
+                            <Badge variant="outline" className="text-xs text-muted-foreground flex-shrink-0">
                               Pending
                             </Badge>
                           )}
                         </CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-4">
+                      <CardContent className="p-4 sm:p-6 pt-0 space-y-3 sm:space-y-4">
                         {/* Players/Teams Display */}
                         <div className="space-y-3">
                           {/* Team 1 */}
                           <div className="rounded-lg border p-3">
                             <div className="flex items-center justify-between">
-                              <div>
+                              <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2">
-                                  {isMultiPlayer && <Users className="h-4 w-4 text-muted-foreground" />}
-                                  <div className="font-semibold">{team1Display}</div>
+                                  {isMultiPlayer && <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+                                  <div className="font-semibold break-words">{team1Display}</div>
                                 </div>
-                                <div className="text-sm text-muted-foreground">{team1Name}</div>
+                                <div className="text-sm text-muted-foreground break-words">{team1Name}</div>
                               </div>
                             </div>
                           </div>
@@ -417,12 +512,12 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
                           {/* Team 2 */}
                           <div className="rounded-lg border p-3">
                             <div className="flex items-center justify-between">
-                              <div>
+                              <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2">
-                                  {isMultiPlayer && <Users className="h-4 w-4 text-muted-foreground" />}
-                                  <div className="font-semibold">{team2Display}</div>
+                                  {isMultiPlayer && <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+                                  <div className="font-semibold break-words">{team2Display}</div>
                                 </div>
-                                <div className="text-sm text-muted-foreground">{team2Name}</div>
+                                <div className="text-sm text-muted-foreground break-words">{team2Name}</div>
                               </div>
                             </div>
                           </div>
@@ -431,11 +526,11 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
                         {/* Result Display */}
                         {result && (
                           <div className="rounded-lg bg-muted p-3 text-center">
-                            <div className="text-sm font-semibold">
+                            <div className="text-sm font-semibold break-words">
                               {result.text === 'Draw' ? 'Draw' : `${result.text} Won`}
                             </div>
                             {result.text !== 'Draw' && (
-                              <div className="mt-1 text-xs text-muted-foreground">
+                              <div className="mt-1 text-xs text-muted-foreground break-words">
                                 ({result.team})
                               </div>
                             )}
@@ -504,7 +599,7 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
         </TabsContent>
         
         {/* By Station View */}
-        <TabsContent value="stations" className="space-y-4">
+        <TabsContent value="stations" className="space-y-4 w-full">
           <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
             {allStations.map(station => {
               const stationGames = getStationGames(station.id)
@@ -524,7 +619,11 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
                       {stationGames.map(game => (
                         <div key={game.id} className="rounded border p-2 text-sm">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="font-semibold">Round {game.round}</span>
+                            <span className={`font-semibold ${
+                              tournament.currentState?.status === 'active' && game.round === currentRound 
+                                ? 'text-green-600' 
+                                : ''
+                            }`}>Round {game.round}</span>
                             {game.status === 'completed' && (
                               <Badge variant="outline" className="text-xs text-green-600">Done</Badge>
                             )}
@@ -566,32 +665,36 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
               <CardContent>
                 <div className="space-y-2">
                   {tournament.schedule.map((round, roundIndex) => {
-                    // Calculate resting players for this round
-                    const playingPlayerIds = new Set()
-                    round.games.forEach(game => {
-                      if (game.team1Players) {
-                        game.team1Players.forEach(p => playingPlayerIds.add(p.playerId))
-                      }
-                      if (game.team2Players) {
-                        game.team2Players.forEach(p => playingPlayerIds.add(p.playerId))
-                      }
-                      if (game.player1) {
-                        playingPlayerIds.add(game.player1.playerId)
-                      }
-                      if (game.player2) {
-                        playingPlayerIds.add(game.player2.playerId)
-                      }
-                    })
-                    
-                    const restingPlayers = allPlayers.filter(player => !playingPlayerIds.has(player.id))
-                    
-                    if (restingPlayers.length === 0) return null
-                    
-                    return (
-                      <div key={roundIndex} className="rounded border p-2 text-sm">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-semibold">Round {roundIndex + 1}</span>
-                        </div>
+                  // Calculate resting players for this round
+                  const playingPlayerIds = new Set()
+                  round.games.forEach(game => {
+                  if (game.team1Players) {
+                  game.team1Players.forEach(p => playingPlayerIds.add(p.playerId))
+                  }
+                  if (game.team2Players) {
+                  game.team2Players.forEach(p => playingPlayerIds.add(p.playerId))
+                  }
+                  if (game.player1) {
+                  playingPlayerIds.add(game.player1.playerId)
+                  }
+                  if (game.player2) {
+                  playingPlayerIds.add(game.player2.playerId)
+                  }
+                  })
+                  
+                  const restingPlayers = allPlayers.filter(player => !playingPlayerIds.has(player.id))
+                  
+                  if (restingPlayers.length === 0) return null
+                  
+                  const isCurrentRound = tournament.currentState?.status === 'active' && (roundIndex + 1) === currentRound
+                  
+                  return (
+                  <div key={roundIndex} className="rounded border p-2 text-sm">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className={`font-semibold ${
+                                isCurrentRound ? 'text-green-600' : ''
+                              }`}>Round {roundIndex + 1}</span>
+                            </div>
                         <div className="text-muted-foreground">
                           {restingPlayers.map(p => `${p.name} (${p.teamName})`).join(', ')}
                         </div>
@@ -605,30 +708,25 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
         </TabsContent>
         
         {/* By Player View */}
-        <TabsContent value="players" className="space-y-4">
-          <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {allPlayers.map(player => (
-              <Button
-                key={player.id}
-                variant={selectedPlayer?.id === player.id ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedPlayer(player)}
-                className="justify-start text-left h-auto py-2 px-3"
-              >
-                <div className="flex flex-col items-start gap-0.5 w-full min-w-0">
-                  <span className="font-medium text-sm truncate w-full">{player.name}</span>
-                  <span className="text-xs text-muted-foreground truncate w-full">
-                    ({player.teamName})
-                  </span>
-                </div>
-              </Button>
-            ))}
+        <TabsContent value="players" className="space-y-4 w-full">
+          <div className="max-w-md">
+            <PlayerCombobox
+              value={selectedPlayer?.name || ''}
+              onSelect={setSelectedPlayer}
+              players={allPlayers}
+              placeholder="Search and select a player..."
+            />
           </div>
           
           {selectedPlayer && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <Card className={`${
+              tournament.currentState?.status === 'active' && 
+              getPlayerSchedule(selectedPlayer.id).some(item => 
+                item.type === 'game' && item.round === currentRound
+              ) ? 'border-green-500 border-2 shadow-green-500/20 shadow-lg' : ''
+            }`}>
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
                   <Users className="h-5 w-5" />
                   {selectedPlayer.name}
                 </CardTitle>
@@ -636,20 +734,20 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
                   {selectedPlayer.teamName} • {getPlayerGames(selectedPlayer.id).length} games scheduled • {getPlayerSchedule(selectedPlayer.id).filter(item => item.type === 'rest').length} rest periods
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2">
+              <CardContent className="p-4 sm:p-6 pt-0">
+                <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2">
                   {getPlayerSchedule(selectedPlayer.id).map((item, index) => {
                     if (item.type === 'rest') {
                       return (
                         <Card key={`round-${item.round}`} className="border-dashed opacity-60">
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-base flex items-center gap-2">
+                          <CardHeader className="p-3 sm:p-4 pb-2">
+                            <CardTitle className="text-sm sm:text-base flex items-center gap-2">
                               <Clock className="h-4 w-4" />
                               Round {item.round}
                             </CardTitle>
                           </CardHeader>
-                          <CardContent>
-                            <div className="text-center text-muted-foreground py-4">
+                          <CardContent className="p-3 sm:p-4 pt-0">
+                            <div className="text-center text-muted-foreground py-2 sm:py-4">
                               <span className="text-sm font-medium">Rest</span>
                             </div>
                           </CardContent>
@@ -706,51 +804,66 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
                       const partners = playerTeam?.filter(p => p.playerId !== selectedPlayer.id) || []
                       
                       return (
-                        <Card key={game.id} className={result ? 'opacity-90' : ''}>
-                          <CardHeader>
-                            <CardTitle className="flex items-center justify-between text-base">
-                              <div className="flex items-center gap-2">
+                      <Card key={game.id} className={`${
+                      result ? 'opacity-90' : ''
+                      } ${
+                            tournament.currentState?.status === 'active' && game.round === currentRound
+                              ? 'border-green-500 border-2 shadow-green-500/20 shadow-lg'
+                              : ''
+                          }`}>
+                            <CardHeader className="p-3 sm:p-4">
+                              <CardTitle className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm sm:text-base ${
+                                tournament.currentState?.status === 'active' && game.round === currentRound
+                                  ? 'text-green-600'
+                                  : ''
+                              }`}>
+                              <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm">
                                 <Clock className="h-4 w-4" />
                                 <span>Round {game.round}</span>
-                                <span className="text-xs text-muted-foreground">•</span>
-                                <span className="text-sm">{game.stationName || game.station}</span>
+                                <span className="text-muted-foreground">•</span>
+                                <span className="break-words">{game.stationName || game.station}</span>
                                 {game.gameTypeName && (
-                                  <span className="text-xs text-muted-foreground">({game.gameTypeName})</span>
+                                  <span className="text-xs text-muted-foreground break-words">({game.gameTypeName})</span>
                                 )}
                               </div>
                               {result && (
                                 <Badge 
                                   variant="outline" 
-                                  className={`text-xs ${result.className} flex items-center gap-1`}
+                                  className={`text-xs ${result.className} flex items-center gap-1 flex-shrink-0`}
                                 >
                                   {result.text === 'Draw' ? (
                                     <>
                                       <Medal className="h-3 w-3" />
-                                      Draw
+                                      <span className="hidden sm:inline">Draw</span>
+                                      <span className="sm:hidden">Draw</span>
                                     </>
                                   ) : (
                                     <>
                                       <Trophy className="h-3 w-3" />
-                                      {result.text === selectedPlayer.name ? 'Won' : 'Lost'}
+                                      <span className="hidden sm:inline">{result.text === selectedPlayer.name ? 'Won' : 'Lost'}</span>
+                                      <span className="sm:hidden">{result.text === selectedPlayer.name ? 'W' : 'L'}</span>
                                     </>
                                   )}
                                 </Badge>
                               )}
                               {!result && (
-                                <Badge variant="outline" className="text-xs text-muted-foreground">
+                                <Badge variant="outline" className="text-xs text-muted-foreground flex-shrink-0">
                                   Pending
                                 </Badge>
                               )}
                             </CardTitle>
                           </CardHeader>
-                          <CardContent className="space-y-4">
-                            {/* Partners section (only if there are actual partners) */}
+                          <CardContent className="p-3 sm:p-4 pt-0 space-y-3 sm:space-y-4">
+                            {/* Player's team section (only if there are actual partners) */}
                             {partners.length > 0 && (
-                              <div className="rounded-lg border p-3 bg-blue-50 border-blue-200">
-                                <div className="text-sm">
-                                  <span className="font-medium text-blue-700">Partners with:</span>
-                                  <div className="text-muted-foreground mt-1">
-                                    {partners.map(p => p.playerName).join(', ')}
+                              <div className="rounded-lg border p-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                      <div className="font-semibold break-words">{selectedPlayer.name} & {partners.map(p => p.playerName).join(' & ')}</div>
+                                    </div>
+                                    <div className="text-sm text-muted-foreground break-words">{selectedPlayer.teamName}</div>
                                   </div>
                                 </div>
                               </div>
@@ -762,12 +875,12 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
                             {/* Opponent */}
                             <div className="rounded-lg border p-3">
                               <div className="flex items-center justify-between">
-                                <div>
+                                <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
-                                    {isMultiPlayer && <Users className="h-4 w-4 text-muted-foreground" />}
-                                    <div className="font-semibold">{opponentDisplay}</div>
+                                    {isMultiPlayer && <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+                                    <div className="font-semibold break-words">{opponentDisplay}</div>
                                   </div>
-                                  <div className="text-sm text-muted-foreground">{opponentTeam}</div>
+                                  <div className="text-sm text-muted-foreground break-words">{opponentTeam}</div>
                                 </div>
                               </div>
                             </div>
@@ -775,7 +888,7 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
                             {/* Result Display */}
                             {result && (
                               <div className="rounded-lg bg-muted p-3 text-center">
-                                <div className="text-sm font-semibold">
+                                <div className="text-sm font-semibold break-words">
                                   {result.text === 'Draw' 
                                     ? 'Draw' 
                                     : result.text === selectedPlayer.name 
@@ -784,7 +897,7 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
                                   }
                                 </div>
                                 {result.text !== 'Draw' && (
-                                  <div className="mt-1 text-xs text-muted-foreground">
+                                  <div className="mt-1 text-xs text-muted-foreground break-words">
                                     ({result.team})
                                   </div>
                                 )}

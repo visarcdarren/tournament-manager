@@ -691,7 +691,7 @@ export default function TournamentView({ tournamentId }) {
               </>
             )}
             
-            <TabsContent value="schedule">
+            <TabsContent value="schedule" className="mt-2 w-full min-h-0">
               <ScheduleViewer 
                 tournament={tournament} 
                 isAdmin={isAdmin} 
