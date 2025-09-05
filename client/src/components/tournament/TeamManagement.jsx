@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Plus, Edit2, Trash2, Users, UserPlus, Check, X, Play, AlertCircle, Shuffle, Eye, ArrowLeft, Search } from 'lucide-react'
+import { Plus, Edit2, Trash2, Users, UserPlus, Check, X, Play, AlertCircle, Shuffle, Eye, ArrowLeft, Search, UserX, UserCheck } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -137,9 +137,17 @@ export default function TeamManagement({ tournament, isAdmin, onNavigateToLive }
   const [isRegeneratingSchedule, setIsRegeneratingSchedule] = useState(false)
   
   const canEdit = isAdmin && tournament.currentState.status === 'setup'
+  
+  // Calculate both total and active player counts
   const totalPlayers = tournament.teams.reduce((sum, team) => sum + team.players.length, 0)
+  const activePlayers = tournament.teams.reduce((sum, team) => 
+    sum + team.players.filter(p => p.status === 'active').length, 0
+  )
   const targetPlayers = tournament.settings.teams * tournament.settings.playersPerTeam
-  const isSetupComplete = totalPlayers === targetPlayers && tournament.teams.length === tournament.settings.teams
+  
+  // Setup is complete when we have enough total players allocated
+  // The schedule generator will validate that we have enough active players
+  const isSetupComplete = totalPlayers >= targetPlayers && tournament.teams.length === tournament.settings.teams
   
   const unallocatedPlayers = tournament.playerPool || []
   const hasUnallocatedPlayers = unallocatedPlayers.length > 0
@@ -421,6 +429,52 @@ export default function TeamManagement({ tournament, isAdmin, onNavigateToLive }
     }
   }
   
+  const togglePlayerStatus = async (teamId, playerId) => {
+    const team = tournament.teams.find(t => t.id === teamId)
+    const player = team.players.find(p => p.id === playerId)
+    const newStatus = player.status === 'active' ? 'inactive' : 'active'
+    
+    const updatedTournament = {
+      ...tournament,
+      teams: tournament.teams.map(team =>
+        team.id === teamId
+          ? {
+              ...team,
+              players: team.players.map(player =>
+                player.id === playerId ? { ...player, status: newStatus } : player
+              )
+            }
+          : team
+      )
+    }
+    
+    try {
+      await api.updateTournament(tournament.id, updatedTournament)
+      tournamentStore.setTournament(updatedTournament)
+      
+      // Update selected team if viewing
+      if (selectedTeam?.id === teamId) {
+        setSelectedTeam({
+          ...selectedTeam,
+          players: selectedTeam.players.map(p =>
+            p.id === playerId ? { ...p, status: newStatus } : p
+          )
+        })
+      }
+      
+      toast({
+        title: 'Success',
+        description: `${player.name} marked as ${newStatus}${newStatus === 'inactive' ? ' (will not play)' : ''}`
+      })
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update player status',
+        variant: 'destructive'
+      })
+    }
+  }
+  
   const randomlyAllocateToTeam = async (team) => {
     if (unallocatedPlayers.length === 0) {
       toast({
@@ -579,6 +633,19 @@ export default function TeamManagement({ tournament, isAdmin, onNavigateToLive }
     previewSchedule(true)
   }
   
+  // Helper function to get player status info
+  const getPlayerStatusInfo = (player) => {
+    const status = player.status || 'active'
+    switch (status) {
+      case 'active':
+        return { color: 'text-green-600', icon: UserCheck, label: 'Active' }
+      case 'inactive':
+        return { color: 'text-red-600', icon: UserX, label: 'Inactive' }
+      default:
+        return { color: 'text-green-600', icon: UserCheck, label: 'Active' }
+    }
+  }
+  
   return (
     <div className="space-y-6">
       {/* Summary Card */}
@@ -587,6 +654,11 @@ export default function TeamManagement({ tournament, isAdmin, onNavigateToLive }
           <CardTitle>Team Management</CardTitle>
           <CardDescription>
             {totalPlayers} of {targetPlayers} players allocated across {tournament.teams.length} teams
+            {activePlayers !== totalPlayers && (
+              <span className="block mt-1 text-green-600">
+                {activePlayers} active players ready to play
+              </span>
+            )}
             {hasUnallocatedPlayers && (
               <span className="block mt-1 text-blue-600">
                 {unallocatedPlayers.length} player(s) available in pool
@@ -697,6 +769,16 @@ export default function TeamManagement({ tournament, isAdmin, onNavigateToLive }
             </div>
           )}
           
+          {canEdit && isSetupComplete && activePlayers < targetPlayers && (
+            <div className="mt-4 flex items-center gap-2 text-sm text-orange-600">
+              <AlertCircle className="h-4 w-4" />
+              <span>
+                Warning: Only {activePlayers} of {totalPlayers} players are active. 
+                Some players may need to be reactivated before starting.
+              </span>
+            </div>
+          )}
+          
           {hasUnallocatedPlayers && (
             <div className="mt-4 flex items-center gap-2 text-sm text-blue-600">
               <AlertCircle className="h-4 w-4" />
@@ -786,6 +868,17 @@ export default function TeamManagement({ tournament, isAdmin, onNavigateToLive }
               </div>
               <CardDescription>
                 {team.players.length} of {tournament.settings.playersPerTeam} players
+                {(() => {
+                  const activeCount = team.players.filter(p => p.status === 'active').length;
+                  if (activeCount !== team.players.length) {
+                    return (
+                      <span className="block text-green-600 text-xs mt-1">
+                        {activeCount} active
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
                 {team.players.length < tournament.settings.playersPerTeam && hasUnallocatedPlayers && (
                   <span className="block text-blue-600 text-xs mt-1">
                     {unallocatedPlayers.length} available in pool
@@ -796,22 +889,56 @@ export default function TeamManagement({ tournament, isAdmin, onNavigateToLive }
             <CardContent>
               <div className="space-y-2">
                 {/* Players in team */}
-                {team.players.map(player => (
-                  <div key={player.id} className="flex items-center justify-between text-sm">
-                    <span>{player.name}</span>
-                    {canEdit && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-6 w-6 text-orange-600 hover:text-white hover:bg-orange-600 border-orange-600 flex items-center justify-center"
-                        onClick={() => removePlayerFromTeam(team.id, player.id, true)}
-                        title="Remove from team (move to pool)"
-                      >
-                        <ArrowLeft className="h-3 w-3" style={{ flexShrink: 0 }} />
-                      </Button>
-                    )}
-                  </div>
-                ))}
+                {team.players.map(player => {
+                  const statusInfo = getPlayerStatusInfo(player)
+                  const StatusIcon = statusInfo.icon
+                  return (
+                    <div key={player.id} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <StatusIcon className={`h-4 w-4 ${statusInfo.color}`} />
+                        <span className={player.status === 'inactive' ? 'line-through text-muted-foreground' : ''}>
+                          {player.name}
+                        </span>
+                        {player.status === 'inactive' && (
+                          <Badge variant="outline" className="text-xs text-red-600 border-red-200">
+                            Out
+                          </Badge>
+                        )}
+                      </div>
+                      {canEdit && (
+                        <div className="flex gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className={[
+                              'h-6 w-6 flex items-center justify-center',
+                              player.status === 'active'
+                                ? 'text-red-600 hover:text-white hover:bg-red-600 border-red-600'
+                                : 'text-green-600 hover:text-white hover:bg-green-600 border-green-600'
+                            ].join(' ')}
+                            onClick={() => togglePlayerStatus(team.id, player.id)}
+                            title={player.status === 'active' ? 'Mark as dropped out' : 'Mark as active'}
+                          >
+                            {player.status === 'active' ? (
+                              <UserX className="h-3 w-3" style={{ flexShrink: 0 }} />
+                            ) : (
+                              <UserCheck className="h-3 w-3" style={{ flexShrink: 0 }} />
+                            )}
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6 text-orange-600 hover:text-white hover:bg-orange-600 border-orange-600 flex items-center justify-center"
+                            onClick={() => removePlayerFromTeam(team.id, player.id, true)}
+                            title="Remove from team (move to pool)"
+                          >
+                            <ArrowLeft className="h-3 w-3" style={{ flexShrink: 0 }} />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
                 
                 {team.players.length === 0 && (
                   <div className="text-center py-2 text-muted-foreground text-sm">
@@ -957,7 +1084,110 @@ export default function TeamManagement({ tournament, isAdmin, onNavigateToLive }
             
             {/* Current Players List */}
             <div className="space-y-2">
-              <Label>Current Players ({selectedTeam?.players.length || 0}/{tournament.settings.playersPerTeam})</Label>
+              <div className="flex items-center justify-between">
+                <Label>
+                  Current Players ({selectedTeam?.players.length || 0}/{tournament.settings.playersPerTeam})
+                  {selectedTeam && (() => {
+                    const activeCount = selectedTeam.players.filter(p => p.status === 'active').length;
+                    if (activeCount !== selectedTeam.players.length) {
+                      return (
+                        <span className="text-green-600 font-normal ml-2">
+                          ({activeCount} active)
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
+                </Label>
+                
+                {/* Bulk status management */}
+                {canEdit && selectedTeam && selectedTeam.players.length > 0 && (
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-7 px-2 text-green-600 hover:text-white hover:bg-green-600"
+                      onClick={async () => {
+                        const updatedTournament = {
+                          ...tournament,
+                          teams: tournament.teams.map(team =>
+                            team.id === selectedTeam.id
+                              ? {
+                                  ...team,
+                                  players: team.players.map(player => ({ ...player, status: 'active' }))
+                                }
+                              : team
+                          )
+                        }
+                        
+                        try {
+                          await api.updateTournament(tournament.id, updatedTournament)
+                          tournamentStore.setTournament(updatedTournament)
+                          setSelectedTeam({
+                            ...selectedTeam,
+                            players: selectedTeam.players.map(p => ({ ...p, status: 'active' }))
+                          })
+                          toast({
+                            title: 'Success',
+                            description: `All ${selectedTeam.players.length} players marked as active`
+                          })
+                        } catch (error) {
+                          toast({
+                            title: 'Error',
+                            description: 'Failed to update player status',
+                            variant: 'destructive'
+                          })
+                        }
+                      }}
+                      title="Mark all players as active"
+                    >
+                      All Active
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-7 px-2 text-red-600 hover:text-white hover:bg-red-600"
+                      onClick={async () => {
+                        if (!confirm(`Mark all ${selectedTeam.players.length} players as dropped out?`)) return
+                        
+                        const updatedTournament = {
+                          ...tournament,
+                          teams: tournament.teams.map(team =>
+                            team.id === selectedTeam.id
+                              ? {
+                                  ...team,
+                                  players: team.players.map(player => ({ ...player, status: 'inactive' }))
+                                }
+                              : team
+                          )
+                        }
+                        
+                        try {
+                          await api.updateTournament(tournament.id, updatedTournament)
+                          tournamentStore.setTournament(updatedTournament)
+                          setSelectedTeam({
+                            ...selectedTeam,
+                            players: selectedTeam.players.map(p => ({ ...p, status: 'inactive' }))
+                          })
+                          toast({
+                            title: 'Success',
+                            description: `All ${selectedTeam.players.length} players marked as dropped out`
+                          })
+                        } catch (error) {
+                          toast({
+                            title: 'Error',
+                            description: 'Failed to update player status',
+                            variant: 'destructive'
+                          })
+                        }
+                      }}
+                      title="Mark all players as dropped out"
+                    >
+                      All Out
+                    </Button>
+                  </div>
+                )}
+              </div>
               
               {!selectedTeam || selectedTeam.players.length === 0 ? (
                 <div className="text-center py-4 text-muted-foreground">
@@ -969,82 +1199,114 @@ export default function TeamManagement({ tournament, isAdmin, onNavigateToLive }
                 </div>
               ) : selectedTeam ? (
                 <div className="space-y-2">
-                  {selectedTeam.players.map((player) => (
-                    <div key={player.id} className="flex items-center justify-between rounded-lg border p-3">
-                      {editingPlayer === player.id ? (
-                        <div className="flex items-center gap-2 flex-1">
-                          <Input
-                            value={player.name}
-                            onChange={(e) => {
-                              const updatedTeam = {
-                                ...selectedTeam,
-                                players: selectedTeam.players.map(p =>
-                                  p.id === player.id ? { ...p, name: e.target.value } : p
-                                )
-                              }
-                              setSelectedTeam(updatedTeam)
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') updatePlayerName(selectedTeam.id, player.id, player.name)
-                              if (e.key === 'Escape') setEditingPlayer(null)
-                            }}
-                            className="h-8"
-                          />
-                          <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-green-600 hover:text-white hover:bg-green-600 border-green-600 flex items-center justify-center"
-                          onClick={() => updatePlayerName(selectedTeam.id, player.id, player.name)}
-                          >
-                          <Check className="h-4 w-4" style={{ flexShrink: 0 }} />
-                          </Button>
-                          <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-gray-600 hover:text-white hover:bg-gray-600 border-gray-600 flex items-center justify-center"
-                          onClick={() => setEditingPlayer(null)}
-                          >
-                          <X className="h-4 w-4" style={{ flexShrink: 0 }} />
-                          </Button>
-                        </div>
-                      ) : (
-                        <>
-                          <span className="flex-1">{player.name}</span>
-                          {canEdit && (
-                            <div className="flex gap-1">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 text-blue-600 hover:text-white hover:bg-blue-600 border-blue-600 flex items-center justify-center"
-                                onClick={() => setEditingPlayer(player.id)}
-                                title="Edit name"
-                              >
-                                <Edit2 className="h-4 w-4" style={{ flexShrink: 0 }} />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 text-orange-600 hover:text-white hover:bg-orange-600 border-orange-600 flex items-center justify-center"
-                                onClick={() => removePlayerFromTeam(selectedTeam.id, player.id, true)}
-                                title="Move back to pool"
-                              >
-                                <ArrowLeft className="h-4 w-4" style={{ flexShrink: 0 }} />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 text-red-600 hover:text-white hover:bg-red-600 border-red-600 flex items-center justify-center"
-                                onClick={() => removePlayerFromTeam(selectedTeam.id, player.id, false)}
-                                title="Delete player"
-                              >
-                                <Trash2 className="h-4 w-4" style={{ flexShrink: 0 }} />
-                              </Button>
+                  {selectedTeam.players.map((player) => {
+                    const statusInfo = getPlayerStatusInfo(player)
+                    const StatusIcon = statusInfo.icon
+                    return (
+                      <div key={player.id} className="flex items-center justify-between rounded-lg border p-3">
+                        {editingPlayer === player.id ? (
+                          <div className="flex items-center gap-2 flex-1">
+                            <Input
+                              value={player.name}
+                              onChange={(e) => {
+                                const updatedTeam = {
+                                  ...selectedTeam,
+                                  players: selectedTeam.players.map(p =>
+                                    p.id === player.id ? { ...p, name: e.target.value } : p
+                                  )
+                                }
+                                setSelectedTeam(updatedTeam)
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') updatePlayerName(selectedTeam.id, player.id, player.name)
+                                if (e.key === 'Escape') setEditingPlayer(null)
+                              }}
+                              className="h-8"
+                            />
+                            <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-green-600 hover:text-white hover:bg-green-600 border-green-600 flex items-center justify-center"
+                            onClick={() => updatePlayerName(selectedTeam.id, player.id, player.name)}
+                            >
+                            <Check className="h-4 w-4" style={{ flexShrink: 0 }} />
+                            </Button>
+                            <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-gray-600 hover:text-white hover:bg-gray-600 border-gray-600 flex items-center justify-center"
+                            onClick={() => setEditingPlayer(null)}
+                            >
+                            <X className="h-4 w-4" style={{ flexShrink: 0 }} />
+                            </Button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2 flex-1">
+                              <StatusIcon className={`h-4 w-4 ${statusInfo.color}`} />
+                              <span className={player.status === 'inactive' ? 'line-through text-muted-foreground' : ''}>
+                                {player.name}
+                              </span>
+                              {player.status === 'inactive' && (
+                                <Badge variant="outline" className="text-xs text-red-600 border-red-200">
+                                  Dropped Out
+                                </Badge>
+                              )}
                             </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  ))}
+                            {canEdit && (
+                              <div className="flex gap-1">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className={[
+                                    'h-8 w-8 flex items-center justify-center',
+                                    player.status === 'active'
+                                      ? 'text-red-600 hover:text-white hover:bg-red-600 border-red-600'
+                                      : 'text-green-600 hover:text-white hover:bg-green-600 border-green-600'
+                                  ].join(' ')}
+                                  onClick={() => togglePlayerStatus(selectedTeam.id, player.id)}
+                                  title={player.status === 'active' ? 'Mark as dropped out' : 'Mark as active'}
+                                >
+                                  {player.status === 'active' ? (
+                                    <UserX className="h-4 w-4" style={{ flexShrink: 0 }} />
+                                  ) : (
+                                    <UserCheck className="h-4 w-4" style={{ flexShrink: 0 }} />
+                                  )}
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-blue-600 hover:text-white hover:bg-blue-600 border-blue-600 flex items-center justify-center"
+                                  onClick={() => setEditingPlayer(player.id)}
+                                  title="Edit name"
+                                >
+                                  <Edit2 className="h-4 w-4" style={{ flexShrink: 0 }} />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-orange-600 hover:text-white hover:bg-orange-600 border-orange-600 flex items-center justify-center"
+                                  onClick={() => removePlayerFromTeam(selectedTeam.id, player.id, true)}
+                                  title="Move back to pool"
+                                >
+                                  <ArrowLeft className="h-4 w-4" style={{ flexShrink: 0 }} />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-red-600 hover:text-white hover:bg-red-600 border-red-600 flex items-center justify-center"
+                                  onClick={() => removePlayerFromTeam(selectedTeam.id, player.id, false)}
+                                  title="Delete player"
+                                >
+                                  <Trash2 className="h-4 w-4" style={{ flexShrink: 0 }} />
+                                </Button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               ) : null}
             </div>

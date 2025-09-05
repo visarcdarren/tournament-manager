@@ -100,10 +100,27 @@ export function validateTournamentSetup(tournament) {
   const teamSizes = tournament.teams.map(team => 
     team.players.filter(p => p.status === 'active').length
   );
+  const totalTeamSizes = tournament.teams.map(team => team.players.length);
   const uniqueSizes = [...new Set(teamSizes)];
   
   if (uniqueSizes.length > 1) {
-    errors.push(`All teams must have the same number of active players. Current sizes: ${teamSizes.join(', ')}`);
+    errors.push(`All teams must have the same number of active players. Current active players: ${teamSizes.join(', ')}`);
+    
+    // Add helpful message about inactive players
+    const teamsWithInactive = tournament.teams.filter(team => {
+      const activeCount = team.players.filter(p => p.status === 'active').length;
+      return activeCount < team.players.length;
+    });
+    
+    if (teamsWithInactive.length > 0) {
+      const teamDetails = teamsWithInactive.map(team => {
+        const active = team.players.filter(p => p.status === 'active').length;
+        const total = team.players.length;
+        const inactive = total - active;
+        return `${team.name}: ${active}/${total} active (${inactive} dropped out)`;
+      });
+      warnings.push(`Teams with dropped out players: ${teamDetails.join(', ')}. You may need to reactivate some players or move players between teams.`);
+    }
   }
   
   const playersPerTeam = teamSizes[0] || 0;
