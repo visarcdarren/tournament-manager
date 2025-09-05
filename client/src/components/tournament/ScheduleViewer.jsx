@@ -249,9 +249,58 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
     }
   }
   
-  // const handlePrint = () => {
-  //   window.print()
-  // }
+  const handlePrint = () => {
+    // Open print route in new window
+    const printWindow = window.open(
+      `/tournament/${tournament.id}/print`,
+      '_blank',
+      'width=1200,height=800,scrollbars=yes,resizable=yes'
+    )
+    
+    if (printWindow) {
+      // Wait for the page to load, then trigger print and close
+      printWindow.onload = () => {
+        // Small delay to ensure everything is rendered
+        setTimeout(() => {
+          printWindow.print()
+          
+          // Close window after print dialog closes (or after delay)
+          // Check if print was successful and close
+          const checkClosed = setInterval(() => {
+            if (printWindow.closed) {
+              clearInterval(checkClosed)
+            }
+          }, 1000)
+          
+          // Auto-close after 30 seconds as backup
+          setTimeout(() => {
+            if (!printWindow.closed) {
+              printWindow.close()
+              clearInterval(checkClosed)
+            }
+          }, 30000)
+        }, 1000)
+      }
+      
+      // Handle case where window is blocked or fails
+      setTimeout(() => {
+        if (printWindow.closed || !printWindow.document) {
+          toast({
+            title: 'Print Window Blocked',
+            description: 'Please allow pop-ups and try again, or navigate to the print page manually.',
+            variant: 'destructive'
+          })
+        }
+      }, 2000)
+    } else {
+      // Fallback: direct navigation if pop-up is blocked
+      toast({
+        title: 'Opening Print View',
+        description: 'Redirecting to print-friendly page...'
+      })
+      window.open(`/tournament/${tournament.id}/print`, '_blank')
+    }
+  }
   
   // Get all players for player view
   const allPlayers = tournament.teams.flatMap(team => 
@@ -381,10 +430,16 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
               {isRescheduling ? 'Regenerating...' : 'Reschedule'}
             </Button>
           )}
-          {/* <Button onClick={handlePrint} variant="outline" size="sm" className="w-full sm:w-auto">
+          
+          <Button 
+            onClick={handlePrint} 
+            variant="outline" 
+            size="sm" 
+            className="w-full sm:w-auto order-3 sm:order-1"
+          >
             <Printer className="mr-2 h-4 w-4" />
             Print Schedule
-          </Button> */}
+          </Button>
         </div>
       </div>
       
