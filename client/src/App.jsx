@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/toaster'
 import TournamentList from '@/components/tournament/TournamentList'
 import TournamentView from '@/components/tournament/TournamentView'
 import AdminJoinPage from '@/components/tournament/AdminJoinPage'
+import PrintSchedule from '@/components/print/PrintSchedule'
 import useDeviceStore from '@/stores/deviceStore'
 import PWAInstallPrompt from '@/components/common/PWAInstallPrompt'
 
@@ -30,7 +31,11 @@ function App() {
   useEffect(() => {
     try {
       const path = window.location.pathname
-      if (path.startsWith('/tournament/')) {
+      if (path.startsWith('/tournament/') && path.endsWith('/print')) {
+        const id = path.split('/')[2]
+        setTournamentId(id)
+        setCurrentView('print')
+      } else if (path.startsWith('/tournament/')) {
         const id = path.split('/')[2]
         setTournamentId(id)
         setCurrentView('tournament')
@@ -45,7 +50,11 @@ function App() {
       // Handle browser navigation
       const handlePopState = () => {
         const path = window.location.pathname
-        if (path.startsWith('/tournament/')) {
+        if (path.startsWith('/tournament/') && path.endsWith('/print')) {
+          const id = path.split('/')[2]
+          setTournamentId(id)
+          setCurrentView('print')
+        } else if (path.startsWith('/tournament/')) {
           const id = path.split('/')[2]
           setTournamentId(id)
           setCurrentView('tournament')
@@ -70,7 +79,11 @@ function App() {
   const navigate = (path) => {
     try {
       window.history.pushState({}, '', path)
-      if (path.startsWith('/tournament/')) {
+      if (path.startsWith('/tournament/') && path.endsWith('/print')) {
+        const id = path.split('/')[2]
+        setTournamentId(id)
+        setCurrentView('print')
+      } else if (path.startsWith('/tournament/')) {
         const id = path.split('/')[2]
         setTournamentId(id)
         setCurrentView('tournament')
@@ -131,6 +144,8 @@ function App() {
           <TournamentList />
         ) : currentView === 'admin-join' ? (
           <AdminJoinPage />
+        ) : currentView === 'print' ? (
+          <PrintSchedule tournamentId={tournamentId} />
         ) : (
           <TournamentView tournamentId={tournamentId} />
         )}
