@@ -542,26 +542,6 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
                             <MapPin className="h-4 w-4" />
                             <span className="break-words">{game.stationName || game.station}</span>
                           </div>
-                          {result && (
-                            <Badge 
-                              variant="outline" 
-                              className={`text-xs ${result.className} flex items-center gap-1 flex-shrink-0`}
-                            >
-                              {result.text === 'Draw' ? (
-                                <>
-                                  <Medal className="h-3 w-3" />
-                                  <span className="hidden sm:inline">Draw</span>
-                                  <span className="sm:hidden">Draw</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Trophy className="h-3 w-3" />
-                                  <span className="hidden sm:inline">Winner</span>
-                                  <span className="sm:hidden">W</span>
-                                </>
-                              )}
-                            </Badge>
-                          )}
                           {!result && (
                             <Badge variant="outline" className="text-xs text-muted-foreground flex-shrink-0">
                               Pending
@@ -604,15 +584,41 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
                         
                         {/* Result Display */}
                         {result && (
-                          <div className="rounded-lg bg-muted p-3 text-center">
-                            <div className="text-sm font-semibold break-words">
-                              {result.text === 'Draw' ? 'Draw' : `${result.text} Won`}
-                            </div>
+                          <div className="space-y-2">
+                            {/* Result Badge - only show if not a draw */}
                             {result.text !== 'Draw' && (
-                              <div className="mt-1 text-xs text-muted-foreground break-words">
-                                ({result.team})
+                              <div className="flex justify-center">
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs ${result.className} flex items-center gap-1`}
+                                >
+                                  <Trophy className="h-3 w-3" />
+                                  <span className="hidden sm:inline">Winner</span>
+                                  <span className="sm:hidden">W</span>
+                                </Badge>
                               </div>
                             )}
+                            
+                            {/* Winner/Draw Details */}
+                            <div className={`rounded-lg p-3 text-center ${
+                              result.text === 'Draw' ? 'bg-blue-50 border border-blue-200' : 'bg-muted'
+                            }`}>
+                              <div className="text-sm font-semibold break-words">
+                                {result.text === 'Draw' ? (
+                                  <div className="flex items-center justify-center gap-2 text-blue-600">
+                                    <Medal className="h-4 w-4" />
+                                    <span>Draw</span>
+                                  </div>
+                                ) : (
+                                  `${result.text} Won`
+                                )}
+                              </div>
+                              {result.text !== 'Draw' && (
+                                <div className="mt-1 text-xs text-muted-foreground break-words">
+                                  ({result.team})
+                                </div>
+                              )}
+                            </div>
                           </div>
                         )}
                       </CardContent>
@@ -905,26 +911,6 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
                                   <span className="text-xs text-muted-foreground break-words">({game.gameTypeName})</span>
                                 )}
                               </div>
-                              {result && (
-                                <Badge 
-                                  variant="outline" 
-                                  className={`text-xs ${result.className} flex items-center gap-1 flex-shrink-0`}
-                                >
-                                  {result.text === 'Draw' ? (
-                                    <>
-                                      <Medal className="h-3 w-3" />
-                                      <span className="hidden sm:inline">Draw</span>
-                                      <span className="sm:hidden">Draw</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Trophy className="h-3 w-3" />
-                                      <span className="hidden sm:inline">{result.text === selectedPlayer.name ? 'Won' : 'Lost'}</span>
-                                      <span className="sm:hidden">{result.text === selectedPlayer.name ? 'W' : 'L'}</span>
-                                    </>
-                                  )}
-                                </Badge>
-                              )}
                               {!result && (
                                 <Badge variant="outline" className="text-xs text-muted-foreground flex-shrink-0">
                                   Pending
@@ -966,20 +952,43 @@ export default function ScheduleViewer({ tournament, isAdmin, onStartTournament 
                             
                             {/* Result Display */}
                             {result && (
-                              <div className="rounded-lg bg-muted p-3 text-center">
-                                <div className="text-sm font-semibold break-words">
-                                  {result.text === 'Draw' 
-                                    ? 'Draw' 
-                                    : result.text === selectedPlayer.name 
-                                      ? `${selectedPlayer.name} Won!` 
-                                      : `${result.text} Won`
-                                  }
-                                </div>
+                              <div className="space-y-2">
+                                {/* Result Badge - only show if not a draw */}
                                 {result.text !== 'Draw' && (
-                                  <div className="mt-1 text-xs text-muted-foreground break-words">
-                                    ({result.team})
+                                  <div className="flex justify-center">
+                                    <Badge 
+                                      variant="outline" 
+                                      className={`text-xs ${result.className} flex items-center gap-1`}
+                                    >
+                                      <Trophy className="h-3 w-3" />
+                                      <span className="hidden sm:inline">{result.text === selectedPlayer.name ? 'Won' : 'Lost'}</span>
+                                      <span className="sm:hidden">{result.text === selectedPlayer.name ? 'W' : 'L'}</span>
+                                    </Badge>
                                   </div>
                                 )}
+                                
+                                {/* Winner/Draw Details */}
+                                <div className={`rounded-lg p-3 text-center ${
+                                  result.text === 'Draw' ? 'bg-blue-50 border border-blue-200' : 'bg-muted'
+                                }`}>
+                                  <div className="text-sm font-semibold break-words">
+                                    {result.text === 'Draw' ? (
+                                      <div className="flex items-center justify-center gap-2 text-blue-600">
+                                        <Medal className="h-4 w-4" />
+                                        <span>Draw</span>
+                                      </div>
+                                    ) : (
+                                      result.text === selectedPlayer.name 
+                                        ? `${selectedPlayer.name} Won!` 
+                                        : `${result.text} Won`
+                                    )}
+                                  </div>
+                                  {result.text !== 'Draw' && (
+                                    <div className="mt-1 text-xs text-muted-foreground break-words">
+                                      ({result.team})
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             )}
                           </CardContent>
