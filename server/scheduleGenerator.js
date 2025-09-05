@@ -96,17 +96,55 @@ export function validateTournamentSetup(tournament) {
     return { valid: false, errors, warnings };
   }
   
-  // Check if all teams have the same number of active players
+  // Check team sizes and handle dropouts gracefully
   const teamSizes = tournament.teams.map(team => 
     team.players.filter(p => p.status === 'active').length
   );
+  const totalTeamSizes = tournament.teams.map(team => team.players.length);
   const uniqueSizes = [...new Set(teamSizes)];
+  const minTeamSize = Math.min(...teamSizes);
+  const maxTeamSize = Math.max(...teamSizes);
   
-  if (uniqueSizes.length > 1) {
-    errors.push(`All teams must have the same number of active players. Current sizes: ${teamSizes.join(', ')}`);
+  // Allow different team sizes due to dropouts, but enforce minimum requirements
+  if (minTeamSize === 0) {
+    errors.push('All teams must have at least 1 active player');
   }
   
-  const playersPerTeam = teamSizes[0] || 0;
+  // Check if team size differences are too extreme (more than 50% difference)
+  if (maxTeamSize > 0 && minTeamSize > 0) {
+    const sizeDifference = (maxTeamSize - minTeamSize) / maxTeamSize;
+    if (sizeDifference > 0.5) {
+      warnings.push(`Large team size variation detected. Team sizes range from ${minTeamSize} to ${maxTeamSize} active players. This may result in uneven gameplay.`);
+    }
+  }
+  
+  // Inform about teams with dropouts without blocking the tournament
+  const teamsWithInactive = tournament.teams.filter(team => {
+    const activeCount = team.players.filter(p => p.status === 'active').length;
+    return activeCount < team.players.length;
+  });
+  
+  if (teamsWithInactive.length > 0) {
+    const teamDetails = teamsWithInactive.map(team => {
+      const active = team.players.filter(p => p.status === 'active').length;
+      const total = team.players.length;
+      const inactive = total - active;
+      return `${team.name}: ${active}/${total} active (${inactive} dropped out)`;
+    });
+    warnings.push(`Teams with dropouts: ${teamDetails.join(', ')}. Schedule will be generated with remaining active players.`);
+  }
+  
+  // Show current team sizes for transparency
+  if (uniqueSizes.length > 1) {
+    const teamInfo = tournament.teams.map(team => {
+      const active = team.players.filter(p => p.status === 'active').length;
+      return `${team.name}: ${active} players`;
+    }).join(', ');
+    warnings.push(`Team sizes: ${teamInfo}. Players from larger teams may play more frequently.`);
+  }
+  
+  // Use the minimum team size for game type validation to ensure all teams can participate
+  const playersPerTeam = minTeamSize || 0;
   
   // Check game type requirements
   const gameTypes = tournament.settings.gameTypes || [];
@@ -132,8 +170,8 @@ export function validateTournamentSetup(tournament) {
     maxPlayersNeeded = Math.max(maxPlayersNeeded, playersNeededForGameType);
   }
   
-  // Check if we have enough players total
-  const totalPlayers = tournament.teams.length * playersPerTeam;
+  // Check if we have enough players total (sum of all active players)
+  const totalPlayers = teamSizes.reduce((sum, size) => sum + size, 0);
   const minPlayersNeeded = totalStations * 2; // At least 2 players per station (1v1 minimum)
   
   if (totalPlayers < minPlayersNeeded) {
@@ -168,7 +206,8 @@ export function validateTournamentSetup(tournament) {
     warnings,
     summary: {
       teams: tournament.teams.length,
-      playersPerTeam,
+      minPlayersPerTeam: minTeamSize,
+      maxPlayersPerTeam: maxTeamSize,
       totalPlayers,
       totalStations,
       gameTypes: gameTypes.length
